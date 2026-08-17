@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
@@ -68,6 +69,8 @@ export default function AuthPage() {
       </form>
 
       {message && <p className="mt-4 rounded-lg border border-zinc-800 p-3 text-sm text-zinc-200">{message}</p>}
+
+      {mode === "signin" && <Link href="/auth/reset" className="mt-4 text-center text-sm text-zinc-300 underline">Forgot password?</Link>}
 
       <button className="mt-6 text-sm text-zinc-300 underline" onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setMessage(""); }}>
         {mode === "signup" ? "Already have an account? Sign in" : "Need an account? Create one"}
