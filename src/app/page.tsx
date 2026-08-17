@@ -91,9 +91,10 @@ export default function HomePage() {
           <h1 className="mt-2 text-3xl font-bold">Welcome{profile?.display_name ? `, ${profile.display_name}` : ""}.</h1>
           <p className="mt-2 text-zinc-300">Your training dashboard is ready.</p>
         </div>
-        <button onClick={signOut} className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold">
-          Sign Out
-        </button>
+        <div className="flex gap-2">
+          <Link href="/account" className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold">Account</Link>
+          <button onClick={signOut} className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold">Sign Out</button>
+        </div>
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2">
