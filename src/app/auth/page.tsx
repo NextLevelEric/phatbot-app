@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
+const AUTH_TIMEOUT_MS = 12000;
+
 export default function AuthPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signup");
   const [email, setEmail] = useState("");
@@ -14,24 +16,35 @@ export default function AuthPage() {
     event.preventDefault();
     setLoading(true);
     setMessage("");
-    const supabase = createSupabaseBrowserClient();
 
-    const result = mode === "signup"
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password });
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const authRequest = mode === "signup"
+        ? supabase.auth.signUp({ email, password })
+        : supabase.auth.signInWithPassword({ email, password });
 
-    setLoading(false);
-    if (result.error) {
-      setMessage(result.error.message);
-      return;
+      const timeout = new Promise<never>((_, reject) => {
+        window.setTimeout(() => reject(new Error("Authentication request timed out. Check the Supabase URL/key configuration and try again.")), AUTH_TIMEOUT_MS);
+      });
+
+      const result = await Promise.race([authRequest, timeout]);
+
+      if (result.error) {
+        setMessage(result.error.message);
+        return;
+      }
+
+      if (mode === "signup" && !result.data.session) {
+        setMessage("Account created. Check your email to confirm your account, then sign in.");
+        return;
+      }
+
+      window.location.href = "/";
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to contact the authentication service. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    if (mode === "signup" && !result.data.session) {
-      setMessage("Account created. Check your email to confirm your account, then sign in.");
-      return;
-    }
-
-    window.location.href = "/";
   }
 
   return (
