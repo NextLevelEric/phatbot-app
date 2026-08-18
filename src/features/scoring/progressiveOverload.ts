@@ -20,6 +20,8 @@ export type ExerciseScoreResult = {
   previousBest: PerformanceSet | null;
 };
 
+const MIN_REPS_FOR_WEIGHT_INCREASE_WIN = 3;
+
 const progressionNoteTerms = [
   "better form",
   "improved form",
@@ -92,14 +94,22 @@ export function scoreExercisePerformance(
   const plannedReset = includesAny(notes, resetNoteTerms);
 
   if (currentBest.weight > previousBest.weight) {
-    if (currentBest.reps >= previousBest.reps) {
-      return { result: "progression", score: 1, explanationCode: "higher_weight_equal_or_more_reps", currentBest, previousBest };
+    if (currentBest.reps >= MIN_REPS_FOR_WEIGHT_INCREASE_WIN) {
+      return {
+        result: "progression",
+        score: 1,
+        explanationCode: currentBest.reps >= previousBest.reps
+          ? "higher_weight_equal_or_more_reps"
+          : "higher_weight_three_plus_reps",
+        currentBest,
+        previousBest,
+      };
     }
 
     return {
       result: "neutral",
       score: 0.5,
-      explanationCode: "higher_weight_fewer_reps",
+      explanationCode: "higher_weight_under_three_reps",
       currentBest,
       previousBest,
     };
@@ -139,8 +149,9 @@ export function scoreExercisePerformance(
 export function explainExerciseScore(code: string) {
   const explanations: Record<string, string> = {
     first_comparable_performance: "Baseline established. Complete this exercise again to create a true comparison.",
-    higher_weight_equal_or_more_reps: "Progression: you used more weight without giving up reps.",
-    higher_weight_fewer_reps: "Mixed result: you moved more weight, but reps dropped, so PHATBOT is treating this conservatively as neutral.",
+    higher_weight_equal_or_more_reps: "Progression: you used more weight and matched or exceeded your previous reps.",
+    higher_weight_three_plus_reps: "Progression: you moved more weight for at least 3 full reps, so PHATBOT counts the load increase as a win.",
+    higher_weight_under_three_reps: "Neutral: you moved more weight, but fewer than 3 full reps does not yet count as a progression win.",
     same_weight_more_reps: "Progression: you completed more full reps at the same weight.",
     same_weight_reps_more_partials: "Progression: full reps matched and you added lengthened partials.",
     same_numbers_improved_quality: "Progression: the load and reps matched, while your notes indicate improved execution quality.",
