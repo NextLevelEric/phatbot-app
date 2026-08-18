@@ -13,44 +13,12 @@ export type WorkoutScoreResult = {
   accessoryCount: number;
 };
 
-function average(items: WorkoutScoreItem[]) {
-  if (items.length === 0) return null;
-  return items.reduce((sum, item) => sum + item.result.score, 0) / items.length;
-}
-
+// Workout-level weighting is now calculated in the report from the first
+// exercise's first three non-warmup sets. This helper remains as a fallback
+// for older callers and treats exercise-level results as one flat score.
 export function calculateWorkoutScore(items: WorkoutScoreItem[]): WorkoutScoreResult {
-  const comparable = items
-    .filter((item) => item.result.result !== "baseline")
-    .sort((a, b) => a.position - b.position);
-
-  if (comparable.length === 0) {
-    return {
-      percentage: null,
-      topBlockPercentage: null,
-      accessoryPercentage: null,
-      topBlockCount: 0,
-      accessoryCount: 0,
-    };
-  }
-
-  const topBlock = comparable.slice(0, 4);
-  const accessoryBlock = comparable.slice(4);
-  const topAverage = average(topBlock);
-  const accessoryAverage = average(accessoryBlock);
-
-  // PHATBOT's normal daily score gives the first four scored exercises about
-  // 60% of the workout and later accessory/back-off work about 40%.
-  // When a workout has four or fewer comparable exercises there is no second
-  // block, so the available work represents 100% of the score.
-  const weightedScore = accessoryAverage === null
-    ? topAverage!
-    : (topAverage! * 0.6) + (accessoryAverage * 0.4);
-
-  return {
-    percentage: Math.round(weightedScore * 100),
-    topBlockPercentage: Math.round(topAverage! * 100),
-    accessoryPercentage: accessoryAverage === null ? null : Math.round(accessoryAverage * 100),
-    topBlockCount: topBlock.length,
-    accessoryCount: accessoryBlock.length,
-  };
+  const comparable = items.filter((item) => item.result.result !== "baseline");
+  if (comparable.length === 0) return { percentage: null, topBlockPercentage: null, accessoryPercentage: null, topBlockCount: 0, accessoryCount: 0 };
+  const average = comparable.reduce((sum, item) => sum + item.result.score, 0) / comparable.length;
+  return { percentage: Math.round(average * 100), topBlockPercentage: null, accessoryPercentage: Math.round(average * 100), topBlockCount: 0, accessoryCount: comparable.length };
 }
