@@ -8,78 +8,10 @@ type Profile = { display_name: string | null };
 type LatestWorkout = { id: string; workout_name_snapshot: string; completed_at: string | null };
 
 export default function HomePage() {
-  const [loading, setLoading] = useState(true);
-  const [signedIn, setSignedIn] = useState(false);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [latestWorkout, setLatestWorkout] = useState<LatestWorkout | null>(null);
-  const [weeklyCompleted, setWeeklyCompleted] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    const supabase = createSupabaseBrowserClient();
-
-    async function loadUser() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!active) return;
-
-      if (!user) {
-        setSignedIn(false);
-        setLoading(false);
-        return;
-      }
-
-      setSignedIn(true);
-      const weekStart = new Date();
-      const day = weekStart.getDay();
-      const diff = day === 0 ? 6 : day - 1;
-      weekStart.setDate(weekStart.getDate() - diff);
-      weekStart.setHours(0, 0, 0, 0);
-
-      const [profileResult, latestResult, weeklyResult] = await Promise.all([
-        supabase.from("profiles").select("display_name").eq("id", user.id).single(),
-        supabase.from("workout_sessions").select("id, workout_name_snapshot, completed_at").eq("athlete_user_id", user.id).eq("status", "completed").order("completed_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("workout_sessions").select("id", { count: "exact", head: true }).eq("athlete_user_id", user.id).eq("status", "completed").gte("completed_at", weekStart.toISOString()),
-      ]);
-
-      if (active) {
-        setProfile(profileResult.data);
-        setLatestWorkout(latestResult.data ?? null);
-        setWeeklyCompleted(weeklyResult.count ?? 0);
-        setLoading(false);
-      }
-    }
-
-    loadUser();
-    const { data: listener } = supabase.auth.onAuthStateChange(() => { loadUser(); });
-    return () => { active = false; listener.subscription.unsubscribe(); };
-  }, []);
-
-  async function signOut() {
-    const supabase = createSupabaseBrowserClient();
-    await supabase.auth.signOut();
-    window.location.href = "/";
-  }
-
+  const [loading, setLoading] = useState(true); const [signedIn, setSignedIn] = useState(false); const [profile, setProfile] = useState<Profile | null>(null); const [latestWorkout, setLatestWorkout] = useState<LatestWorkout | null>(null); const [weeklyCompleted, setWeeklyCompleted] = useState(0);
+  useEffect(() => { let active = true; const supabase = createSupabaseBrowserClient(); async function loadUser() { const { data: { user } } = await supabase.auth.getUser(); if (!active) return; if (!user) { setSignedIn(false); setLoading(false); return; } setSignedIn(true); const weekStart = new Date(); const day = weekStart.getDay(); const diff = day === 0 ? 6 : day - 1; weekStart.setDate(weekStart.getDate() - diff); weekStart.setHours(0, 0, 0, 0); const [profileResult, latestResult, weeklyResult] = await Promise.all([supabase.from("profiles").select("display_name").eq("id", user.id).single(), supabase.from("workout_sessions").select("id, workout_name_snapshot, completed_at").eq("athlete_user_id", user.id).eq("status", "completed").order("completed_at", { ascending: false }).limit(1).maybeSingle(), supabase.from("workout_sessions").select("id", { count: "exact", head: true }).eq("athlete_user_id", user.id).eq("status", "completed").gte("completed_at", weekStart.toISOString())]); if (active) { setProfile(profileResult.data); setLatestWorkout(latestResult.data ?? null); setWeeklyCompleted(weeklyResult.count ?? 0); setLoading(false); } } loadUser(); const { data: listener } = supabase.auth.onAuthStateChange(() => { loadUser(); }); return () => { active = false; listener.subscription.unsubscribe(); }; }, []);
+  async function signOut() { const supabase = createSupabaseBrowserClient(); await supabase.auth.signOut(); window.location.href = "/"; }
   if (loading) return <main className="mx-auto flex min-h-screen max-w-xl items-center px-6 py-12"><p className="text-zinc-300">Loading PHATBOT...</p></main>;
-
   if (!signedIn) return <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-6 px-6 py-12"><div><p className="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-400">PHATBOT</p><h1 className="mt-2 text-4xl font-bold">Did you improve today?</h1><p className="mt-4 text-zinc-300">PHATBOT tracks progressive overload, workout scoring, personal records, and your performance over time.</p></div><Link href="/auth" className="rounded-lg bg-white px-5 py-3 text-center font-semibold text-black">Create Account / Sign In</Link></main>;
-
-  return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-6 py-10">
-      <header className="flex items-start justify-between gap-4">
-        <div><p className="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-400">PHATBOT</p><h1 className="mt-2 text-3xl font-bold">Welcome{profile?.display_name ? `, ${profile.display_name}` : ""}.</h1><p className="mt-2 text-zinc-300">Your training dashboard is ready.</p></div>
-        <div className="flex gap-2"><Link href="/account" className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold">Account</Link><button onClick={signOut} className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold">Sign Out</button></div>
-      </header>
-
-      <section className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-zinc-800 p-5">
-          <p className="text-sm text-zinc-400">Latest Workout</p>
-          {latestWorkout ? <><p className="mt-2 text-2xl font-semibold">{latestWorkout.workout_name_snapshot}</p><p className="mt-2 text-sm text-zinc-400">Completed {latestWorkout.completed_at ? new Date(latestWorkout.completed_at).toLocaleString() : "recently"}</p></> : <><p className="mt-2 text-2xl font-semibold">No workouts yet</p><p className="mt-2 text-sm text-zinc-400">Your first completed workout will appear here.</p></>}
-        </div>
-        <div className="rounded-xl border border-zinc-800 p-5"><p className="text-sm text-zinc-400">This Week</p><p className="mt-2 text-2xl font-semibold">{weeklyCompleted} workout{weeklyCompleted === 1 ? "" : "s"}</p><p className="mt-2 text-sm text-zinc-400">Scoring will appear here after the comparison engine is added.</p></div>
-      </section>
-
-      <Link href="/workouts" className="rounded-lg bg-white px-5 py-3 text-center font-semibold text-black">Start Workout</Link>
-    </main>
-  );
+  return <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-6 py-10"><header className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-400">PHATBOT</p><h1 className="mt-2 text-3xl font-bold">Welcome{profile?.display_name ? `, ${profile.display_name}` : ""}.</h1><p className="mt-2 text-zinc-300">Your training dashboard is ready.</p></div><div className="flex gap-2"><Link href="/account" className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold">Account</Link><button onClick={signOut} className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold">Sign Out</button></div></header><section className="grid gap-4 sm:grid-cols-2"><div className="rounded-xl border border-zinc-800 p-5"><p className="text-sm text-zinc-400">Latest Workout</p>{latestWorkout ? <><p className="mt-2 text-2xl font-semibold">{latestWorkout.workout_name_snapshot}</p><p className="mt-2 text-sm text-zinc-400">Completed {latestWorkout.completed_at ? new Date(latestWorkout.completed_at).toLocaleString() : "recently"}</p><Link href={`/sessions/${latestWorkout.id}/report`} className="mt-4 inline-block text-sm font-semibold underline">View Report →</Link></> : <><p className="mt-2 text-2xl font-semibold">No workouts yet</p><p className="mt-2 text-sm text-zinc-400">Your first completed workout will appear here.</p></>}</div><div className="rounded-xl border border-zinc-800 p-5"><p className="text-sm text-zinc-400">This Week</p><p className="mt-2 text-2xl font-semibold">{weeklyCompleted} workout{weeklyCompleted === 1 ? "" : "s"}</p><p className="mt-2 text-sm text-zinc-400">Exercise comparisons are now available in each workout report.</p></div></section><Link href="/workouts" className="rounded-lg bg-white px-5 py-3 text-center font-semibold text-black">Start Workout</Link></main>;
 }
