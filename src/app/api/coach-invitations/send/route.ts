@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
+const PUBLIC_APP_URL = "https://phatbot-app.vercel.app";
+
 export async function POST(request: Request) {
   try {
     const authHeader = request.headers.get("authorization");
@@ -27,8 +29,9 @@ export async function POST(request: Request) {
     const { error: inviteError } = await supabase.from("coach_invitations").insert({ athlete_user_id: user.id, coach_email: coachEmail });
     if (inviteError) return NextResponse.json({ error: inviteError.code === "23505" ? "You already have a pending invitation for that coach." : inviteError.message }, { status: 400 });
 
-    const origin = new URL(request.url).origin;
-    const joinUrl = `${origin}/auth/coach?email=${encodeURIComponent(coachEmail)}`;
+    // Always send invitation links to the public PHATBOT production URL. Using
+    // request.url here can accidentally create a protected Vercel deployment URL.
+    const joinUrl = `${PUBLIC_APP_URL}/auth/coach?email=${encodeURIComponent(coachEmail)}`;
     const resend = new Resend(resendKey);
     const from = `PHATBOT <invites@${emailDomain}>`;
     const { error: emailError } = await resend.emails.send({
