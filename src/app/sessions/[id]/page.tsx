@@ -13,8 +13,8 @@ type Draft = { weight: string; reps: string; partials: string; setType: SetType;
 type PreviousExercise = { completedAt: string; sets: LoggedSet[] };
 
 const setTypeLabels: Record<SetType, string> = { warmup: "Warmup", working: "Working", top: "Top Set", backoff: "Backoff", drop: "Drop Set", rest_pause: "Rest-Pause" };
-const MAX_WEIGHT = 10000;
-const MAX_REPS = 1000;
+const MAX_WEIGHT = 5000;
+const MAX_REPS = 100;
 const MAX_SET_NOTE = 500;
 const MAX_EXERCISE_NOTE = 1000;
 const MAX_WORKOUT_NOTE = 2000;
