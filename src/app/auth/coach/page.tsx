@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 const AUTH_TIMEOUT_MS = 12000;
+const PUBLIC_APP_URL = "https://phatbot-app.vercel.app";
 
 export default function CoachAuthPage() {
   const [mode, setMode] = useState<"signup" | "signin">("signup");
@@ -17,10 +18,15 @@ export default function CoachAuthPage() {
   const [invited, setInvited] = useState(false);
 
   useEffect(() => {
-    const invitedEmail = new URLSearchParams(window.location.search).get("email");
+    const params = new URLSearchParams(window.location.search);
+    const invitedEmail = params.get("email");
     if (invitedEmail) {
       setEmail(invitedEmail);
       setInvited(true);
+    }
+    if (params.get("confirmed") === "1") {
+      setMode("signin");
+      setMessage("Email confirmed. Sign in to review and accept your athlete invitation.");
     }
   }, []);
 
@@ -35,13 +41,24 @@ export default function CoachAuthPage() {
     event.preventDefault(); setLoading(true); setMessage("");
     try {
       const supabase = createSupabaseBrowserClient();
+      const cleanEmail = email.trim().toLowerCase();
       const authRequest = mode === "signup"
-        ? supabase.auth.signUp({ email: email.trim().toLowerCase(), password, options: { data: { signup_type: "coach", display_name: name.trim(), business_name: businessName.trim() } } })
-        : supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+        ? supabase.auth.signUp({
+            email: cleanEmail,
+            password,
+            options: {
+              emailRedirectTo: `${PUBLIC_APP_URL}/auth/coach?confirmed=1&email=${encodeURIComponent(cleanEmail)}`,
+              data: { signup_type: "coach", display_name: name.trim(), business_name: businessName.trim() },
+            },
+          })
+        : supabase.auth.signInWithPassword({ email: cleanEmail, password });
       const timeout = new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error("Authentication request timed out. Please try again.")), AUTH_TIMEOUT_MS));
       const result = await Promise.race([authRequest, timeout]);
       if (result.error) { setMessage(result.error.message); return; }
-      if (mode === "signup" && !result.data.session) { setMessage("Coach account created. Confirm your email, then return here and sign in. Your pending athlete invitation will be waiting for you."); return; }
+      if (mode === "signup" && !result.data.session) {
+        setMessage("Coach account created. Check your email to confirm it. The confirmation link will return you to PHATBOT, where you can sign in and accept your athlete invitation.");
+        return;
+      }
       if (!result.data.user) { setMessage("Unable to finish coach setup."); return; }
       await finishCoachSetup(result.data.user.id);
       window.location.href = "/coach/invitations";
