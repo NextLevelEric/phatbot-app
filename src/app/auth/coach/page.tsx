@@ -2,13 +2,11 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 const AUTH_TIMEOUT_MS = 12000;
 
 export default function CoachAuthPage() {
-  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"signup" | "signin">("signup");
   const [name, setName] = useState("");
   const [businessName, setBusinessName] = useState("");
@@ -16,8 +14,15 @@ export default function CoachAuthPage() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [invited, setInvited] = useState(false);
 
-  useEffect(() => { const invitedEmail = searchParams.get("email"); if (invitedEmail) setEmail(invitedEmail); }, [searchParams]);
+  useEffect(() => {
+    const invitedEmail = new URLSearchParams(window.location.search).get("email");
+    if (invitedEmail) {
+      setEmail(invitedEmail);
+      setInvited(true);
+    }
+  }, []);
 
   async function finishCoachSetup(userId: string) {
     const supabase = createSupabaseBrowserClient();
@@ -44,6 +49,5 @@ export default function CoachAuthPage() {
     finally { setLoading(false); }
   }
 
-  const invited = Boolean(searchParams.get("email"));
   return <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-12"><p className="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-400">PHATBOT Coach</p><h1 className="mt-2 text-4xl font-bold">{mode === "signup" ? "Create your coach account" : "Coach sign in"}</h1><p className="mt-3 text-zinc-300">{invited ? "An athlete invited you to PHATBOT. Sign up or sign in with this email to review their invitation." : "Review athlete training, progress, PRs, and performance from one dashboard."}</p><form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">{mode === "signup" && <><label className="flex flex-col gap-2 text-sm font-medium">Your name<input value={name} onChange={(e) => setName(e.target.value)} required className="rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3" /></label><label className="flex flex-col gap-2 text-sm font-medium">Business / coaching name <span className="text-zinc-500">(optional)</span><input value={businessName} onChange={(e) => setBusinessName(e.target.value)} className="rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3" /></label></>}<label className="flex flex-col gap-2 text-sm font-medium">Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3" /></label><label className="flex flex-col gap-2 text-sm font-medium">Password<input type="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3" /></label><button disabled={loading} className="mt-2 rounded-lg bg-white px-5 py-3 font-semibold text-black disabled:opacity-60">{loading ? "Working..." : mode === "signup" ? "Create Coach Account" : "Sign In as Coach"}</button></form>{message && <p className="mt-4 rounded-lg border border-zinc-800 p-3 text-sm text-zinc-200">{message}</p>}<button className="mt-6 text-sm text-zinc-300 underline" onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setMessage(""); }}>{mode === "signup" ? "Already have PHATBOT? Sign in as a coach" : "New coach? Create a coach account"}</button><Link href="/auth" className="mt-4 text-center text-sm text-zinc-500 underline">Athlete sign in / signup</Link></main>;
 }
