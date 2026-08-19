@@ -25,12 +25,30 @@ const MIN_REPS_FOR_WEIGHT_INCREASE_WIN = 3;
 const progressionNoteTerms = [
   "better form",
   "improved form",
+  "improved my form",
+  "improving form",
   "cleaner form",
+  "better technique",
+  "improved technique",
+  "improved my technique",
   "better control",
   "improved control",
+  "more control",
+  "controlled reps",
   "slower eccentric",
+  "slowed down",
+  "slower reps",
+  "slower tempo",
   "time under tension",
   "better tempo",
+  "improved tempo",
+  "better range of motion",
+  "improved range of motion",
+  "fuller range of motion",
+  "better rom",
+  "improved rom",
+  "better mind muscle connection",
+  "better mind-muscle connection",
 ];
 
 const resetNoteTerms = [
@@ -109,7 +127,7 @@ export function scoreExercisePerformance(
     return {
       result: "neutral",
       score: 0.5,
-      explanationCode: "higher_weight_under_three_reps",
+      explanationCode: qualityImproved ? "higher_weight_quality_focus" : "higher_weight_under_three_reps",
       currentBest,
       previousBest,
     };
@@ -132,11 +150,19 @@ export function scoreExercisePerformance(
       return { result: "neutral", score: 0.5, explanationCode: "matched_previous_performance", currentBest, previousBest };
     }
 
+    if (qualityImproved) {
+      return { result: "neutral", score: 0.5, explanationCode: "fewer_reps_improved_quality", currentBest, previousBest };
+    }
+
     if (plannedReset) {
       return { result: "neutral", score: 0.5, explanationCode: "fewer_reps_planned_reset", currentBest, previousBest };
     }
 
     return { result: "regression", score: 0, explanationCode: "same_weight_fewer_reps", currentBest, previousBest };
+  }
+
+  if (qualityImproved) {
+    return { result: "neutral", score: 0.5, explanationCode: "lower_weight_improved_quality", currentBest, previousBest };
   }
 
   if (plannedReset) {
@@ -152,12 +178,15 @@ export function explainExerciseScore(code: string) {
     higher_weight_equal_or_more_reps: "Progression: you used more weight and matched or exceeded your previous reps.",
     higher_weight_three_plus_reps: "Progression: you moved more weight for at least 3 full reps, so PHATBOT counts the load increase as a win.",
     higher_weight_under_three_reps: "Neutral: you moved more weight, but fewer than 3 full reps does not yet count as a progression win.",
+    higher_weight_quality_focus: "Neutral by design: you tested a heavier load while prioritizing execution quality. PHATBOT will not punish intentional technique work.",
     same_weight_more_reps: "Progression: you completed more full reps at the same weight.",
     same_weight_reps_more_partials: "Progression: full reps matched and you added lengthened partials.",
-    same_numbers_improved_quality: "Progression: the load and reps matched, while your notes indicate improved execution quality.",
+    same_numbers_improved_quality: "Progression: the numbers matched and your notes show better execution. Cleaner reps are real progress. Beep boop.",
     matched_previous_performance: "Neutral: you matched your previous best performance.",
+    fewer_reps_improved_quality: "Neutral by design: reps were lower, but your notes show improved form, control, tempo, or range of motion. Good training decision. PHATBOT protects quality work from a negative score.",
     fewer_reps_planned_reset: "Neutral: reps were lower, but your notes indicate a planned technique or recovery reset.",
     same_weight_fewer_reps: "Regression: the same weight was completed for fewer reps.",
+    lower_weight_improved_quality: "Neutral by design: you reduced the load to improve execution quality. That is not failure. Better form, control, tempo, or range of motion is productive training. Beep boop.",
     lower_weight_planned_reset: "Neutral: load was lower, but your notes indicate a planned technique or recovery reset.",
     lower_weight: "Regression: the strongest comparable set used less weight than last time.",
     no_scored_work_set: "No comparable working set was available to score.",
