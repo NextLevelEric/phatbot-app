@@ -1,0 +1,44 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { scoreExercisePerformance, type PerformanceSet } from "@/features/scoring/progressiveOverload";
+import { calculateStrengthChange } from "@/features/scoring/strengthChange";
+
+type RawSet = { weight:number; reps:number; partial_reps:number; set_type:string; set_number:number };
+type ExerciseSession = { exercise_id:string; position:number; notes:string|null; sets:RawSet[] };
+type Session = { id:string; workout_id:string; workout_name_snapshot:string; completed_at:string };
+type Report = Session & { score:number|null; strength:number|null };
+function normalize(sets:RawSet[]):PerformanceSet[]{return [...sets].sort((a,b)=>a.set_number-b.set_number).filter(s=>["warmup","working","top","backoff"].includes(s.set_type)).map(s=>({weight:Number(s.weight),reps:s.reps,partialReps:s.partial_reps,setType:s.set_type as PerformanceSet["setType"]}));}
+function weekStart(){const d=new Date();const day=d.getDay();d.setDate(d.getDate()-(day===0?6:day-1));d.setHours(0,0,0,0);return d;}
+
+export default function CoachAthletePage(){
+ const params=useParams<{athleteId:string}>(); const athleteId=params.athleteId;
+ const [name,setName]=useState("Athlete"); const [reports,setReports]=useState<Report[]>([]); const [loading,setLoading]=useState(true); const [message,setMessage]=useState("");
+ useEffect(()=>{const supabase=createSupabaseBrowserClient(); async function load(){
+  const {data:{user}}=await supabase.auth.getUser(); if(!user){window.location.href="/auth/coach";return;}
+  const {data:link}=await supabase.from("coach_athletes").select("athlete_user_id").eq("coach_user_id",user.id).eq("athlete_user_id",athleteId).eq("active",true).maybeSingle();
+  if(!link){setMessage("You do not have access to this athlete.");setLoading(false);return;}
+  const {data:profile}=await supabase.from("profiles").select("display_name").eq("id",athleteId).maybeSingle(); setName(profile?.display_name??"Athlete");
+  const {data:sessions,error}=await supabase.from("workout_sessions").select("id,workout_id,workout_name_snapshot,completed_at").eq("athlete_user_id",athleteId).eq("status","completed").order("completed_at",{ascending:false}).limit(8);
+  if(error){setMessage(error.message);setLoading(false);return;}
+  const built:Report[]=[];
+  for(const session of (sessions??[]) as Session[]){
+   const {data:currentData}=await supabase.from("exercise_sessions").select("exercise_id,position,notes,sets(weight,reps,partial_reps,set_type,set_number)").eq("workout_session_id",session.id).order("position"); const current=(currentData??[]) as ExerciseSession[];
+   const {data:priorSession}=await supabase.from("workout_sessions").select("id").eq("athlete_user_id",athleteId).eq("workout_id",session.workout_id).eq("status","completed").lt("completed_at",session.completed_at).order("completed_at",{ascending:false}).limit(1).maybeSingle();
+   if(!priorSession){built.push({...session,score:null,strength:null});continue;}
+   const {data:priorData}=await supabase.from("exercise_sessions").select("exercise_id,position,notes,sets(weight,reps,partial_reps,set_type,set_number)").eq("workout_session_id",priorSession.id); const prior=(priorData??[]) as ExerciseSession[];
+   const first=[...current].sort((a,b)=>a.position-b.position)[0]; const priorFirst=first?prior.find(x=>x.exercise_id===first.exercise_id):null; const firstSets=first?normalize(first.sets).filter(s=>s.setType!=="warmup").slice(0,3):[]; const priorSets=priorFirst?normalize(priorFirst.sets).filter(s=>s.setType!=="warmup").slice(0,3):[];
+   const top=firstSets.map((set,i)=>scoreExercisePerformance({sets:[set]},priorSets[i]?{sets:[priorSets[i]]}:null)).filter(x=>x.result!=="baseline"); const topAvg=top.length?top.reduce((s,x)=>s+x.score,0)/top.length:null;
+   const accessories=current.filter(x=>x.position>1).map(x=>{const p=prior.find(y=>y.exercise_id===x.exercise_id);return scoreExercisePerformance({sets:normalize(x.sets),notes:x.notes},p?{sets:normalize(p.sets),notes:p.notes}:null);}).filter(x=>x.result!=="baseline"); const accAvg=accessories.length?accessories.reduce((s,x)=>s+x.score,0)/accessories.length:null; const rawScore=topAvg===null?accAvg:accAvg===null?topAvg:topAvg*.6+accAvg*.4;
+   const strength=calculateStrengthChange(current.map(x=>({exerciseId:x.exercise_id,sets:x.sets.map(s=>({weight:Number(s.weight),reps:s.reps,setType:s.set_type}))})),prior.map(x=>({exerciseId:x.exercise_id,sets:x.sets.map(s=>({weight:Number(s.weight),reps:s.reps,setType:s.set_type}))})));
+   built.push({...session,score:rawScore===null?null:Math.round(rawScore*100),strength:strength.percentageChange});
+  }
+  setReports(built);setLoading(false);
+ } load();},[athleteId]);
+ if(loading)return <main className="mx-auto min-h-screen max-w-4xl px-6 py-12 text-zinc-300">Loading athlete performance...</main>;
+ const thisWeek=reports.filter(r=>new Date(r.completed_at)>=weekStart()); const scored=thisWeek.filter(r=>r.score!==null); const weeklyScore=scored.length?Math.round(scored.reduce((s,r)=>s+(r.score??0),0)/scored.length):null; const strengthRows=thisWeek.filter(r=>r.strength!==null); const weeklyStrength=strengthRows.length?strengthRows.reduce((s,r)=>s+(r.strength??0),0)/strengthRows.length:null;
+ return <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-6 py-10"><header className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-[.25em] text-zinc-400">PHATBOT Coach</p><h1 className="mt-2 text-3xl font-bold">{name}</h1><p className="mt-2 text-zinc-400">Training performance and recent workout history.</p></div><Link href="/coach" className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold">All Athletes</Link></header>{message&&<p className="rounded-xl border border-zinc-800 p-4">{message}</p>}{!message&&<><section className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border border-zinc-800 p-5"><p className="text-xs uppercase tracking-widest text-zinc-500">Workouts This Week</p><p className="mt-2 text-4xl font-black">{thisWeek.length}</p></div><div className="rounded-2xl border border-zinc-800 p-5"><p className="text-xs uppercase tracking-widest text-zinc-500">Weekly Score</p><p className="mt-2 text-4xl font-black">{weeklyScore===null?"BASELINE":`${weeklyScore}%`}</p></div><div className="rounded-2xl border border-zinc-800 p-5"><p className="text-xs uppercase tracking-widest text-zinc-500">Strength vs Prior</p><p className="mt-2 text-4xl font-black">{weeklyStrength===null?"N/A":`${weeklyStrength>=0?"+":""}${weeklyStrength.toFixed(1)}%`}</p></div></section><section><h2 className="mb-3 text-xl font-bold">Recent Workouts</h2><div className="flex flex-col gap-3">{reports.length===0?<div className="rounded-xl border border-zinc-800 p-5 text-zinc-400">No completed workouts yet.</div>:reports.map(r=><article key={r.id} className="rounded-xl border border-zinc-800 p-5"><div className="flex items-center justify-between gap-4"><div><p className="font-semibold">{r.workout_name_snapshot}</p><p className="mt-1 text-xs text-zinc-500">{new Date(r.completed_at).toLocaleDateString()}</p></div><div className="text-right"><p className="text-xl font-bold">{r.score===null?"Baseline":`${r.score}%`}</p><p className="mt-1 text-sm text-zinc-400">Strength {r.strength===null?"N/A":`${r.strength>=0?"+":""}${r.strength.toFixed(1)}%`}</p></div></div></article>)}</div></section></>}</main>;
+}
