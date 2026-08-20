@@ -23,8 +23,8 @@ export type ExerciseScoreResult = {
 const MIN_REPS_FOR_WEIGHT_INCREASE_WIN = 3;
 
 const progressionNoteTerms = [
-  "better form", "improved form", "improved my form", "improving form", "cleaner form",
-  "better technique", "improved technique", "improved my technique", "better control",
+  "better form", "improved form", "improved my form", "improving form", "improve my form", "improve form", "cleaner form",
+  "better technique", "improved technique", "improved my technique", "improve my technique", "improve technique", "better control",
   "improved control", "more control", "controlled reps", "slower eccentric", "slowed down",
   "slower reps", "slower tempo", "time under tension", "better tempo", "improved tempo",
   "better range of motion", "improved range of motion", "fuller range of motion", "better rom",
