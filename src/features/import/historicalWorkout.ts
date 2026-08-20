@@ -30,8 +30,14 @@ export function parsePerformanceCell(value: unknown): HistoricalSet[] {
   const source = text(value);
   if (!source || source === "-" || /^\d{1,2}:\d{2}:\d{2}$/.test(source)) return [];
   const cleaned = source.replace(/\s+/g, "").replace(/[()]/g, "");
-  const matches = [...cleaned.matchAll(/(-?\d+(?:\.\d+)?)\*(\d+)(?:\+(\d+))?/g)];
-  return matches.map((m) => ({ weight: Number(m[1]), reps: Number(m[2]), partialReps: Number(m[3] ?? 0), source }));
+  const matches = [...cleaned.matchAll(/(-?\d+(?:\.\d+)?)\*(\d+)/g)];
+  return matches.map((match, index) => {
+    const end = (match.index ?? 0) + match[0].length;
+    const nextStart = index + 1 < matches.length ? (matches[index + 1].index ?? cleaned.length) : cleaned.length;
+    const between = cleaned.slice(end, nextStart);
+    const partial = between.match(/^\+(\d+)$/);
+    return { weight: Number(match[1]), reps: Number(match[2]), partialReps: Number(partial?.[1] ?? 0), source };
+  });
 }
 
 function workoutNameFromSheet(sheetName: string) { return sheetName.trim(); }
