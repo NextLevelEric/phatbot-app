@@ -1,7 +1,94 @@
 "use client";
-import Link from "next/link";import {useEffect,useState} from "react";import {useParams} from "next/navigation";import {createSupabaseBrowserClient} from "@/lib/supabase";import {detectPersonalRecords,type PRSet} from "@/features/scoring/personalRecords";
-type RawSet={weight:number;reps:number;partial_reps:number;set_type:string;set_number:number};type Ex={exercise_id:string;exercise_name_snapshot:string;position:number;notes:string|null;sets:RawSet[]};type Session={workout_name_snapshot:string;completed_at:string};type Row=Ex&{prs:{message:string}[]};function p(s:RawSet[]):PRSet[]{return s.map(x=>({weight:Number(x.weight),reps:x.reps,partialReps:x.partial_reps,setType:x.set_type}));}
-export default function CoachWorkoutDetail(){const {athleteId,sessionId}=useParams<{athleteId:string;sessionId:string}>();const [session,setSession]=useState<Session|null>(null);const [rows,setRows]=useState<Row[]>([]);const [loading,setLoading]=useState(true);const [message,setMessage]=useState("");const [feedback,setFeedback]=useState("");const [savedFeedback,setSavedFeedback]=useState("");const [saving,setSaving]=useState(false);const [coachId,setCoachId]=useState("");const [feedbackStatus,setFeedbackStatus]=useState("");
-useEffect(()=>{const supabase=createSupabaseBrowserClient();async function load(){const {data:{user}}=await supabase.auth.getUser();if(!user){window.location.href="/auth/coach";return;}setCoachId(user.id);const {data:link}=await supabase.from("coach_athletes").select("athlete_user_id").eq("coach_user_id",user.id).eq("athlete_user_id",athleteId).eq("active",true).maybeSingle();if(!link){setMessage("You do not have access to this athlete.");setLoading(false);return;}const {data:s,error}=await supabase.from("workout_sessions").select("workout_name_snapshot,completed_at").eq("id",sessionId).eq("athlete_user_id",athleteId).eq("status","completed").maybeSingle();if(error||!s){setMessage(error?.message??"Workout not found.");setLoading(false);return;}const {data:existing}=await supabase.from("coach_workout_feedback").select("feedback").eq("workout_session_id",sessionId).eq("coach_user_id",user.id).maybeSingle();if(existing?.feedback){setFeedback(existing.feedback);setSavedFeedback(existing.feedback);setFeedbackStatus("Saved in PHATBOT memory banks.");}const {data:ex}=await supabase.from("exercise_sessions").select("exercise_id,exercise_name_snapshot,position,notes,sets(weight,reps,partial_reps,set_type,set_number)").eq("workout_session_id",sessionId).order("position");const built:Row[]=[];for(const e of (ex??[]) as Ex[]){const {data:h}=await supabase.from("exercise_sessions").select("sets(weight,reps,partial_reps,set_type,set_number)").eq("exercise_id",e.exercise_id).neq("workout_session_id",sessionId);const hist=((h??[]) as {sets:RawSet[]}[]).flatMap(x=>x.sets??[]);built.push({...e,prs:detectPersonalRecords(p(e.sets??[]),p(hist)).map(x=>({message:x.message}))});}setSession(s);setRows(built);setLoading(false);}load();},[athleteId,sessionId]);
-async function saveFeedback(){const clean=feedback.trim();if(!clean){setFeedbackStatus("PHATBOT requires at least one human word before transmitting coach feedback.");return;}setSaving(true);setFeedbackStatus("Transmitting coach feedback...");const supabase=createSupabaseBrowserClient();const {error}=await supabase.from("coach_workout_feedback").upsert({workout_session_id:sessionId,athlete_user_id:athleteId,coach_user_id:coachId,feedback:clean,updated_at:new Date().toISOString()},{onConflict:"workout_session_id,coach_user_id"});if(error){setFeedbackStatus(`Transmission failed: ${error.message}`);}else{setSavedFeedback(clean);setFeedback(clean);setFeedbackStatus("Beep boop. Coach feedback transmitted and saved successfully.");}setSaving(false);}
-if(loading)return <main className="mx-auto min-h-screen max-w-3xl px-6 py-12">Beep boop... loading workout telemetry.</main>;return <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10"><header><p className="text-sm font-semibold uppercase tracking-[.25em] text-zinc-400">PHATBOT Coach Report</p><h1 className="mt-2 text-3xl font-bold">{session?.workout_name_snapshot??"Workout"}</h1>{session&&<p className="mt-2 text-zinc-400">Workout telemetry captured {new Date(session.completed_at).toLocaleString()}</p>}</header>{message&&<p className="rounded-xl border border-zinc-800 p-4 text-sm">{message}</p>}{!session?null:<><section className="flex flex-col gap-4">{rows.map(e=><article key={e.exercise_id} className="rounded-xl border border-zinc-800 p-5"><p className="text-xs uppercase tracking-widest text-zinc-500">Exercise {e.position}</p><Link href={`/coach/athletes/${athleteId}/trends/exercises?exercise=${encodeURIComponent(e.exercise_id)}`} className="mt-1 inline-flex items-center gap-2 text-xl font-bold underline decoration-zinc-700 underline-offset-4 hover:decoration-white">{e.exercise_name_snapshot}<span className="text-sm font-semibold text-zinc-400">View trend →</span></Link>{e.prs.map((pr,i)=><p key={i} className="mt-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm font-semibold">🏆 PR sensor: {pr.message}</p>)}<div className="mt-4 overflow-hidden rounded-lg border border-zinc-800"><div className="grid grid-cols-4 bg-zinc-900 px-3 py-2 text-xs font-bold uppercase text-zinc-500"><span>Set</span><span>Type</span><span>Weight</span><span>Reps</span></div>{[...e.sets].sort((a,b)=>a.set_number-b.set_number).map(s=><div key={s.set_number} className="grid grid-cols-4 border-t border-zinc-800 px-3 py-3 text-sm"><span>{s.set_number}</span><span className="capitalize">{s.set_type}</span><span>{Number(s.weight)}</span><span>{s.reps}{s.partial_reps?` + ${s.partial_reps} partial`:""}</span></div>)}</div>{e.notes&&<p className="mt-4 text-sm text-zinc-400"><strong className="text-zinc-200">Athlete notes:</strong> {e.notes}</p>}</article>)}</section><section className="rounded-2xl border border-zinc-700 p-5"><p className="text-xs font-bold uppercase tracking-[.2em] text-zinc-400">Coach Transmission</p><h2 className="mt-2 text-xl font-bold">Send workout feedback</h2><p className="mt-1 text-sm text-zinc-400">Leave feedback tied directly to this workout. The athlete will be able to see it in their report.</p><textarea value={feedback} onChange={e=>{setFeedback(e.target.value);setFeedbackStatus("");}} maxLength={3000} rows={5} placeholder="Example: Great progression on the top sets. Keep the same load next week and beat the rep total." className="mt-4 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-4 text-sm outline-none focus:border-zinc-500"/><div className="mt-3 flex items-center justify-between gap-3"><p className="text-xs text-zinc-500">{feedback.length}/3000 {savedFeedback&&feedback===savedFeedback?"• saved":""}</p><button onClick={saveFeedback} disabled={saving||!feedback.trim()||feedback.trim()===savedFeedback} className="rounded-lg bg-white px-5 py-3 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-40">{saving?"Transmitting...":savedFeedback?"Update Feedback":"Send Feedback"}</button></div>{feedbackStatus&&<div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-sm font-semibold text-zinc-200">🤖 {feedbackStatus}</div>}</section></>}<Link href={`/coach/athletes/${athleteId}`} className="rounded-lg border border-zinc-700 px-5 py-3 text-center font-semibold">Back to Athlete</Link></main>;}
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { detectPersonalRecords, type PRSet } from "@/features/scoring/personalRecords";
+import { scoreExercisePerformance, type ExerciseScoreResult, type PerformanceSet } from "@/features/scoring/progressiveOverload";
+import { calculateWeightedWorkoutScore } from "@/features/scoring/workoutScore";
+
+type RawSet = { weight:number; reps:number; partial_reps:number; set_type:string; set_number:number };
+type Ex = { exercise_id:string; exercise_name_snapshot:string; position:number; notes:string|null; sets:RawSet[] };
+type Session = { workout_id:string; workout_name_snapshot:string; completed_at:string; notes:string|null };
+type Row = Ex & { prs:{message:string}[]; result:ExerciseScoreResult };
+
+function prSets(sets:RawSet[]):PRSet[]{return sets.map(x=>({weight:Number(x.weight),reps:x.reps,partialReps:x.partial_reps,setType:x.set_type}));}
+function performanceSets(sets:RawSet[]):PerformanceSet[]{return sets.filter(s=>["warmup","working","top","backoff"].includes(s.set_type)).map(s=>({weight:Number(s.weight),reps:s.reps,partialReps:s.partial_reps,setType:s.set_type as PerformanceSet["setType"]}));}
+function notes(a:string|null|undefined,b:string|null|undefined){return [a,b].filter(Boolean).join(" ").trim()||null;}
+function scoreSet(current:PerformanceSet,previous:PerformanceSet|null,currentNotes?:string|null,previousNotes?:string|null){return scoreExercisePerformance({sets:[current],notes:currentNotes},previous?{sets:[previous],notes:previousNotes}:null);}
+
+export default function CoachWorkoutDetail(){
+  const {athleteId,sessionId}=useParams<{athleteId:string;sessionId:string}>();
+  const [session,setSession]=useState<Session|null>(null);
+  const [rows,setRows]=useState<Row[]>([]);
+  const [topSetScores,setTopSetScores]=useState<ExerciseScoreResult[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [message,setMessage]=useState("");
+  const [feedback,setFeedback]=useState("");
+  const [savedFeedback,setSavedFeedback]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [coachId,setCoachId]=useState("");
+  const [feedbackStatus,setFeedbackStatus]=useState("");
+
+  useEffect(()=>{
+    const supabase=createSupabaseBrowserClient();
+    async function load(){
+      const {data:{user}}=await supabase.auth.getUser();
+      if(!user){window.location.href="/auth/coach";return;}
+      setCoachId(user.id);
+      const {data:link}=await supabase.from("coach_athletes").select("athlete_user_id").eq("coach_user_id",user.id).eq("athlete_user_id",athleteId).eq("active",true).maybeSingle();
+      if(!link){setMessage("You do not have access to this athlete.");setLoading(false);return;}
+      const {data:s,error}=await supabase.from("workout_sessions").select("workout_id,workout_name_snapshot,completed_at,notes").eq("id",sessionId).eq("athlete_user_id",athleteId).eq("status","completed").maybeSingle();
+      if(error||!s){setMessage(error?.message??"Workout not found.");setLoading(false);return;}
+      const currentSession=s as Session;
+      const {data:existing}=await supabase.from("coach_workout_feedback").select("feedback").eq("workout_session_id",sessionId).eq("coach_user_id",user.id).maybeSingle();
+      if(existing?.feedback){setFeedback(existing.feedback);setSavedFeedback(existing.feedback);setFeedbackStatus("Saved in PHATBOT memory banks.");}
+      const {data:ex}=await supabase.from("exercise_sessions").select("exercise_id,exercise_name_snapshot,position,notes,sets(weight,reps,partial_reps,set_type,set_number)").eq("workout_session_id",sessionId).order("position");
+      const current=(ex??[]) as Ex[];
+      const {data:previousSession}=await supabase.from("workout_sessions").select("id,notes").eq("athlete_user_id",athleteId).eq("workout_id",currentSession.workout_id).eq("status","completed").lt("completed_at",currentSession.completed_at).order("completed_at",{ascending:false}).limit(1).maybeSingle();
+      let previous:Ex[]=[];
+      if(previousSession){const {data}=await supabase.from("exercise_sessions").select("exercise_id,exercise_name_snapshot,position,notes,sets(weight,reps,partial_reps,set_type,set_number)").eq("workout_session_id",previousSession.id);previous=(data??[]) as Ex[];}
+      const built:Row[]=[];
+      for(const e of current){
+        const prior=previous.find(x=>x.exercise_id===e.exercise_id)??null;
+        const {data:h}=await supabase.from("exercise_sessions").select("sets(weight,reps,partial_reps,set_type,set_number)").eq("exercise_id",e.exercise_id).neq("workout_session_id",sessionId);
+        const hist=((h??[]) as {sets:RawSet[]}[]).flatMap(x=>x.sets??[]);
+        built.push({...e,prs:detectPersonalRecords(prSets(e.sets??[]),prSets(hist)).map(x=>({message:x.message})),result:scoreExercisePerformance({sets:performanceSets(e.sets??[]),notes:notes(currentSession.notes,e.notes)},prior?{sets:performanceSets(prior.sets??[]),notes:notes(previousSession?.notes,prior.notes)}:null)});
+      }
+      const first=[...current].sort((a,b)=>a.position-b.position)[0];
+      const previousFirst=first?previous.find(x=>x.exercise_id===first.exercise_id)??null:null;
+      const firstSets=first?performanceSets(first.sets??[]).filter(s=>s.setType!=="warmup").slice(0,3):[];
+      const previousSets=previousFirst?performanceSets(previousFirst.sets??[]).filter(s=>s.setType!=="warmup").slice(0,3):[];
+      setTopSetScores(firstSets.map((set,i)=>scoreSet(set,previousSets[i]??null,notes(currentSession.notes,first?.notes),notes(previousSession?.notes,previousFirst?.notes))));
+      setSession(currentSession);setRows(built);setLoading(false);
+    }
+    load();
+  },[athleteId,sessionId]);
+
+  async function saveFeedback(){
+    const clean=feedback.trim();if(!clean){setFeedbackStatus("PHATBOT requires at least one human word before transmitting coach feedback.");return;}
+    setSaving(true);setFeedbackStatus("Transmitting coach feedback...");
+    const supabase=createSupabaseBrowserClient();
+    const {error}=await supabase.from("coach_workout_feedback").upsert({workout_session_id:sessionId,athlete_user_id:athleteId,coach_user_id:coachId,feedback:clean,updated_at:new Date().toISOString()},{onConflict:"workout_session_id,coach_user_id"});
+    if(error)setFeedbackStatus(`Transmission failed: ${error.message}`);else{setSavedFeedback(clean);setFeedback(clean);setFeedbackStatus("Beep boop. Coach feedback transmitted and saved successfully.");}
+    setSaving(false);
+  }
+
+  if(loading)return <main className="mx-auto min-h-screen max-w-3xl px-6 py-12">Beep boop... loading workout telemetry.</main>;
+  const accessoryRows=rows.filter(r=>r.position>1);
+  const workoutScore=calculateWeightedWorkoutScore(topSetScores,accessoryRows.map(r=>r.result));
+  const progressed=rows.filter(r=>r.result.result==="progression").length;
+  const neutral=rows.filter(r=>r.result.result==="neutral"||r.result.result==="baseline").length;
+  const regressed=rows.filter(r=>r.result.result==="regression").length;
+  return <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
+    <header><p className="text-sm font-semibold uppercase tracking-[.25em] text-zinc-400">PHATBOT Coach Report</p><h1 className="mt-2 text-3xl font-bold">{session?.workout_name_snapshot??"Workout"}</h1>{session&&<p className="mt-2 text-zinc-400">Workout telemetry captured {new Date(session.completed_at).toLocaleString()}</p>}</header>
+    {message&&<p className="rounded-xl border border-zinc-800 p-4 text-sm">{message}</p>}
+    {!session?null:<>
+      <section className="rounded-2xl border border-zinc-700 p-5"><p className="text-xs font-bold uppercase tracking-[.2em] text-zinc-400">PHATBOT Performance</p><div className="mt-3 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-zinc-900 p-4"><p className="text-xs uppercase tracking-wider text-zinc-500">Workout Score</p><p className="mt-1 text-3xl font-black">{workoutScore.percentage===null?"BASELINE":`${workoutScore.percentage}%`}</p></div><div className="rounded-xl bg-zinc-900 p-4"><p className="text-xs uppercase tracking-wider text-zinc-500">Top Block · 60%</p><p className="mt-1 text-3xl font-black">{workoutScore.topBlockPercentage===null?"N/A":`${workoutScore.topBlockPercentage}%`}</p></div><div className="rounded-xl bg-zinc-900 p-4"><p className="text-xs uppercase tracking-wider text-zinc-500">Rest · 40%</p><p className="mt-1 text-3xl font-black">{workoutScore.accessoryPercentage===null?"N/A":`${workoutScore.accessoryPercentage}%`}</p></div></div><p className="mt-3 text-sm text-zinc-400">{workoutScore.percentage===null?"First comparable workout.":`${progressed} progressed · ${neutral} neutral · ${regressed} regressed`} · Same canonical scoring used in the athlete report.</p></section>
+      <section className="flex flex-col gap-4">{rows.map(e=><article key={e.exercise_id} className="rounded-xl border border-zinc-800 p-5"><p className="text-xs uppercase tracking-widest text-zinc-500">Exercise {e.position}</p><div className="flex flex-wrap items-center justify-between gap-2"><Link href={`/coach/athletes/${athleteId}/trends/exercises?exercise=${encodeURIComponent(e.exercise_id)}`} className="mt-1 inline-flex items-center gap-2 text-xl font-bold underline decoration-zinc-700 underline-offset-4 hover:decoration-white">{e.exercise_name_snapshot}<span className="text-sm font-semibold text-zinc-400">View trend →</span></Link><span className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-bold uppercase">{e.result.result}</span></div>{e.prs.map((pr,i)=><p key={i} className="mt-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm font-semibold">🏆 PR sensor: {pr.message}</p>)}<div className="mt-4 overflow-hidden rounded-lg border border-zinc-800"><div className="grid grid-cols-4 bg-zinc-900 px-3 py-2 text-xs font-bold uppercase text-zinc-500"><span>Set</span><span>Type</span><span>Weight</span><span>Reps</span></div>{[...e.sets].sort((a,b)=>a.set_number-b.set_number).map(s=><div key={s.set_number} className="grid grid-cols-4 border-t border-zinc-800 px-3 py-3 text-sm"><span>{s.set_number}</span><span className="capitalize">{s.set_type}</span><span>{Number(s.weight)}</span><span>{s.reps}{s.partial_reps?` + ${s.partial_reps} partial`:""}</span></div>)}</div>{e.notes&&<p className="mt-4 text-sm text-zinc-400"><strong className="text-zinc-200">Athlete notes:</strong> {e.notes}</p>}</article>)}</section>
+      <section className="rounded-2xl border border-zinc-700 p-5"><p className="text-xs font-bold uppercase tracking-[.2em] text-zinc-400">Coach Transmission</p><h2 className="mt-2 text-xl font-bold">Send workout feedback</h2><p className="mt-1 text-sm text-zinc-400">Leave feedback tied directly to this workout. The athlete will be able to see it in their report.</p><textarea value={feedback} onChange={e=>{setFeedback(e.target.value);setFeedbackStatus("");}} maxLength={3000} rows={5} placeholder="Example: Great progression on the top sets. Keep the same load next week and beat the rep total." className="mt-4 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-4 text-sm outline-none focus:border-zinc-500"/><div className="mt-3 flex items-center justify-between gap-3"><p className="text-xs text-zinc-500">{feedback.length}/3000 {savedFeedback&&feedback===savedFeedback?"• saved":""}</p><button onClick={saveFeedback} disabled={saving||!feedback.trim()||feedback.trim()===savedFeedback} className="rounded-lg bg-white px-5 py-3 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-40">{saving?"Transmitting...":savedFeedback?"Update Feedback":"Send Feedback"}</button></div>{feedbackStatus&&<div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-sm font-semibold text-zinc-200">🤖 {feedbackStatus}</div>}</section>
+    </>}
+    <Link href={`/coach/athletes/${athleteId}`} className="rounded-lg border border-zinc-700 px-5 py-3 text-center font-semibold">Back to Athlete</Link>
+  </main>;
+}
