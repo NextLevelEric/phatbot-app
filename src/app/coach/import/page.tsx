@@ -71,7 +71,7 @@ export default function CoachWorkoutImportPage() {
   return <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
     <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div><p className="text-sm font-semibold uppercase tracking-[.25em] text-zinc-400">PHATBOT Coach</p><h1 className="mt-2 text-3xl font-bold">Import Workout Template</h1><p className="mt-2 max-w-2xl text-zinc-400">Upload the spreadsheet you already use. PHATBOT will scan it first and show exactly what it understands before any workout is created.</p></div>
-      <Link href="/coach" className="whitespace-nowrap rounded-lg border border-zinc-700 px-4 py-2 text-center text-sm font-semibold">Back to Coach</Link>
+      <div className="flex flex-wrap gap-2"><Link href="/coach/import/history" className="whitespace-nowrap rounded-lg border border-zinc-700 px-4 py-2 text-center text-sm font-semibold">Import History</Link><Link href="/coach" className="whitespace-nowrap rounded-lg border border-zinc-700 px-4 py-2 text-center text-sm font-semibold">Back to Coach</Link></div>
     </header>
 
     <section className="rounded-2xl border border-zinc-800 p-5 sm:p-6">
