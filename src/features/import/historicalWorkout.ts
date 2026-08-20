@@ -23,13 +23,19 @@ export function parseWorkoutDate(label: string, defaultYear = new Date().getFull
 }
 
 /** Parse one spreadsheet performance cell into one or more load/rep sets.
- * Supports 245*2+1, 160*5+120*5+80*7, and parenthesized assisted loads.
- * Malformed/incomplete fragments are ignored and surfaced by the caller as warnings.
+ * Supports weighted entries such as 245*2+1, chained drop/backoff work such as
+ * 160*5+120*5+80*7, assisted loads, and historical bodyweight shorthand such
+ * as 12 or 12+2 (stored as weight 0). Live workouts still require an explicit
+ * weight value in the app.
  */
 export function parsePerformanceCell(value: unknown): HistoricalSet[] {
   const source = text(value);
   if (!source || source === "-" || /^\d{1,2}:\d{2}:\d{2}$/.test(source)) return [];
   const cleaned = source.replace(/\s+/g, "").replace(/[()]/g, "");
+
+  const bodyweight = cleaned.match(/^(\d+)(?:\+(\d+))?$/);
+  if (bodyweight) return [{ weight: 0, reps: Number(bodyweight[1]), partialReps: Number(bodyweight[2] ?? 0), source }];
+
   const matches = [...cleaned.matchAll(/(-?\d+(?:\.\d+)?)\*(\d+)/g)];
   return matches.map((match, index) => {
     const end = (match.index ?? 0) + match[0].length;
