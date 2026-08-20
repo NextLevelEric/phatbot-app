@@ -17,7 +17,8 @@
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "resend": "latest"
+    "resend": "latest",
+    "xlsx": "latest"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "latest",
