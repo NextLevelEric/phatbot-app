@@ -81,7 +81,10 @@ label {
 }
 
 a,
-button {
+button,
+p.text-2xl,
+p.text-3xl,
+p.text-4xl {
   overflow-wrap: normal;
   word-break: normal;
 }
