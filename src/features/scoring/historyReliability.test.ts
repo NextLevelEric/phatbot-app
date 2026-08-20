@@ -26,13 +26,16 @@ describe("PHATBOT scoring and history reliability audit", () => {
     expect(result.explanationCode).toBe("same_weight_reps_more_partials");
   });
 
-  it("keeps chained historical drop-set blocks as separate performances", () => {
+  it("preserves chained historical drop-set blocks without letting a lower drop-set rewrite the primary score", () => {
     const previous = performance([set(160, 5), set(120, 5), set(80, 6)]);
     const current = performance([set(160, 5), set(120, 5), set(80, 7)]);
     const result = scoreExercisePerformance(current, previous);
 
     expect(current.sets).toHaveLength(3);
-    expect(result.result).toBe("progression");
+    expect(result.currentBest).toMatchObject({ weight: 160, reps: 5 });
+    expect(result.previousBest).toMatchObject({ weight: 160, reps: 5 });
+    expect(result.result).toBe("neutral");
+    expect(result.explanationCode).toBe("matched_previous_performance");
   });
 
   it("keeps a heavier sub-three-rep test neutral rather than calling it regression", () => {
