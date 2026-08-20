@@ -76,11 +76,14 @@ p,
 h1,
 h2,
 h3,
-a,
-button,
-label,
-span {
+label {
   overflow-wrap: anywhere;
+}
+
+a,
+button {
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 @media (max-width: 640px) {
