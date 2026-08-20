@@ -7,8 +7,14 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 type Workout = { id: string; name: string; description: string | null };
 type Exercise = { id: string; name: string; muscle_group: string | null; equipment: string | null };
-type WorkoutExercise = { id: string; position: number; target_rep_min: number | null; target_rep_max: number | null; exercise: Exercise };
+type WorkoutExercise = { id: string; position: number; target_rep_min: number | null; target_rep_max: number | null; prescribed_set_targets: string[]; exercise: Exercise };
 type RepDraft = { min: string; max: string };
+
+function fallbackTarget(item: WorkoutExercise) {
+  if (item.prescribed_set_targets?.length) return item.prescribed_set_targets;
+  if (item.target_rep_min && item.target_rep_max) return [item.target_rep_min === item.target_rep_max ? `${item.target_rep_min}` : `${item.target_rep_min}-${item.target_rep_max}`];
+  return [];
+}
 
 export default function WorkoutDetailPage() {
   const params = useParams<{ id: string }>();
@@ -31,7 +37,7 @@ export default function WorkoutDetailPage() {
     if (!user) { window.location.href = "/auth"; return; }
     const [workoutResult, workoutExercisesResult, exercisesResult] = await Promise.all([
       supabase.from("workouts").select("id, name, description").eq("id", params.id).eq("athlete_user_id", user.id).single(),
-      supabase.from("workout_exercises").select("id, position, target_rep_min, target_rep_max, exercise:exercises(id, name, muscle_group, equipment)").eq("workout_id", params.id).order("position", { ascending: true }),
+      supabase.from("workout_exercises").select("id, position, target_rep_min, target_rep_max, prescribed_set_targets, exercise:exercises(id, name, muscle_group, equipment)").eq("workout_id", params.id).order("position", { ascending: true }),
       supabase.from("exercises").select("id, name, muscle_group, equipment").eq("is_active", true).order("name", { ascending: true }),
     ]);
     if (workoutResult.error) { setMessage(workoutResult.error.message); setWorkout(null); } else setWorkout(workoutResult.data);
@@ -55,7 +61,7 @@ export default function WorkoutDetailPage() {
   async function addExercise(exerciseId: string) {
     setWorking(true); setMessage(""); const supabase = createSupabaseBrowserClient();
     const nextPosition = workoutExercises.reduce((max, item) => Math.max(max, item.position), 0) + 1;
-    const { error } = await supabase.from("workout_exercises").insert({ workout_id: params.id, exercise_id: exerciseId, position: nextPosition, target_rep_min: 6, target_rep_max: 12, minimum_progression_reps: 1 });
+    const { error } = await supabase.from("workout_exercises").insert({ workout_id: params.id, exercise_id: exerciseId, position: nextPosition, target_rep_min: 6, target_rep_max: 12, prescribed_set_targets: ["6-12"], minimum_progression_reps: 1 });
     if (error) setMessage(error.message); else { setMessage("Beep boop. Exercise added to the training sequence."); await loadPage(); } setWorking(false);
   }
 
@@ -66,7 +72,7 @@ export default function WorkoutDetailPage() {
     const { data, error } = await supabase.from("exercises").insert({ name, muscle_group: customMuscleGroup.trim() || null, equipment: customEquipment.trim() || null, created_by: user.id }).select("id").single();
     if (error) { setMessage(error.message); setWorking(false); return; }
     const nextPosition = workoutExercises.reduce((max, item) => Math.max(max, item.position), 0) + 1;
-    const { error: addError } = await supabase.from("workout_exercises").insert({ workout_id: params.id, exercise_id: data.id, position: nextPosition, target_rep_min: 6, target_rep_max: 12, minimum_progression_reps: 1 });
+    const { error: addError } = await supabase.from("workout_exercises").insert({ workout_id: params.id, exercise_id: data.id, position: nextPosition, target_rep_min: 6, target_rep_max: 12, prescribed_set_targets: ["6-12"], minimum_progression_reps: 1 });
     if (addError) setMessage(addError.message); else { setCustomName(""); setCustomMuscleGroup(""); setCustomEquipment(""); setSearch(""); setShowAdd(false); setMessage("Beep boop. Custom exercise created and added."); await loadPage(); } setWorking(false);
   }
 
@@ -103,8 +109,9 @@ export default function WorkoutDetailPage() {
   async function saveRepTargets(item: WorkoutExercise) {
     const draft = repDrafts[item.id] ?? { min: "", max: "" }; const min = Number(draft.min); const max = Number(draft.max);
     if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || max < 1 || min > max) { setMessage("PHATBOT input check: target reps must be whole numbers and the minimum cannot exceed the maximum."); return; }
-    setWorking(true); setMessage(""); const supabase = createSupabaseBrowserClient(); const { error } = await supabase.from("workout_exercises").update({ target_rep_min: min, target_rep_max: max }).eq("id", item.id);
-    if (error) setMessage(error.message); else { setMessage(`Beep boop. ${item.exercise.name} target locked at ${min}-${max} reps.`); await loadPage(); } setWorking(false);
+    const targetText = min === max ? `${min}` : `${min}-${max}`;
+    setWorking(true); setMessage(""); const supabase = createSupabaseBrowserClient(); const { error } = await supabase.from("workout_exercises").update({ target_rep_min: min, target_rep_max: max, prescribed_set_targets: [targetText] }).eq("id", item.id);
+    if (error) setMessage(error.message); else { setMessage(`Beep boop. ${item.exercise.name} target locked at ${targetText} reps.`); await loadPage(); } setWorking(false);
   }
 
   async function startWorkout() {
@@ -114,7 +121,7 @@ export default function WorkoutDetailPage() {
     if (anyActive) { setMessage(`PHATBOT detected an active ${anyActive.workout_name_snapshot} session. Resume or complete that workout before starting another.`); setWorking(false); return; }
     const { data: newSession, error } = await supabase.from("workout_sessions").insert({ athlete_user_id: user.id, workout_id: workout.id, workout_name_snapshot: workout.name, status: "in_progress" }).select("id").single();
     if (error || !newSession) { setMessage(error?.message ?? "Unable to start workout."); setWorking(false); return; }
-    const sessionExercises = workoutExercises.map((item) => ({ workout_session_id: newSession.id, workout_exercise_id: item.id, exercise_id: item.exercise.id, exercise_name_snapshot: item.exercise.name, position: item.position }));
+    const sessionExercises = workoutExercises.map((item) => ({ workout_session_id: newSession.id, workout_exercise_id: item.id, exercise_id: item.exercise.id, exercise_name_snapshot: item.exercise.name, position: item.position, prescribed_set_targets_snapshot: fallbackTarget(item) }));
     const { error: exerciseError } = await supabase.from("exercise_sessions").insert(sessionExercises);
     if (exerciseError) { await supabase.from("workout_sessions").delete().eq("id", newSession.id); setMessage(exerciseError.message); setWorking(false); return; }
     window.location.href = `/sessions/${newSession.id}`;
