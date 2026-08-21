@@ -55,7 +55,7 @@ export default function RoleModeSwitcher() {
           <button
             type="button"
             onClick={() => switchMode("athlete")}
-            className={`whitespace-nowrap rounded-md px-3 py-2 ${currentMode === "athlete" ? "bg-white text-black" : "text-zinc-300"}`}
+            className={`whitespace-nowrap rounded-md px-3 py-2 transition-colors ${currentMode === "athlete" ? "phat-accent-bg" : "text-zinc-300 hover:text-white"}`}
             aria-pressed={currentMode === "athlete"}
           >
             Athlete View
@@ -63,7 +63,7 @@ export default function RoleModeSwitcher() {
           <button
             type="button"
             onClick={() => switchMode("coach")}
-            className={`whitespace-nowrap rounded-md px-3 py-2 ${currentMode === "coach" ? "bg-white text-black" : "text-zinc-300"}`}
+            className={`whitespace-nowrap rounded-md px-3 py-2 transition-colors ${currentMode === "coach" ? "phat-accent-bg" : "text-zinc-300 hover:text-white"}`}
             aria-pressed={currentMode === "coach"}
           >
             Coach View
