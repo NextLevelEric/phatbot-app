@@ -39,6 +39,11 @@ a, button, p.text-2xl, p.text-3xl, p.text-4xl { overflow-wrap: normal; word-brea
 .phat-accent-border { border-color: var(--phat-accent); }
 .phat-signal { border-color: rgba(255, 0, 50, 0.42); background: var(--phat-accent-soft); }
 
+/* Consistent interactive motion without making the product feel animated. */
+a[class*="rounded"], button[class*="rounded"] { transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease; }
+a[class*="rounded"]:active, button[class*="rounded"]:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { cursor: not-allowed; }
+
 /* Athlete dashboard */
 main.max-w-2xl > a:last-child { background: var(--phat-accent); color: white; border: 1px solid var(--phat-accent); transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease; }
 main.max-w-2xl > a:last-child:hover { background: var(--phat-accent-hover); border-color: var(--phat-accent-hover); }
@@ -78,4 +83,33 @@ main.max-w-2xl > div.grid:last-child > a:last-child:hover { background: var(--ph
 @media (max-width: 640px) {
   input, select, textarea { font-size: 16px; }
   button, a.rounded-lg, a.rounded-xl { min-height: 44px; }
+
+  /* Mobile spacing: preserve hierarchy while reclaiming vertical space. */
+  main[class*="max-w-"] { padding-left: 1rem !important; padding-right: 1rem !important; }
+  main[class*="py-10"], main[class*="py-12"] { padding-top: 1.5rem !important; padding-bottom: 2rem !important; }
+  main[class*="gap-8"] { gap: 1.5rem !important; }
+  main[class*="gap-6"] { gap: 1.25rem !important; }
+
+  /* Cards should breathe, but not consume a phone screen unnecessarily. */
+  main section[class*="rounded"], main article[class*="rounded"] { scroll-margin-top: 4.5rem; }
+  main section[class*="p-6"], main article[class*="p-6"] { padding: 1.25rem !important; }
+
+  /* Prevent long action rows from creating cramped half-width controls. */
+  main .grid[class*="sm:grid-cols-2"] > a,
+  main .grid[class*="sm:grid-cols-2"] > button { width: 100%; }
+
+  /* Keep major metrics readable without awkward wrapping. */
+  p.text-5xl { font-size: 2.75rem; line-height: 1; }
+  h1.text-4xl { font-size: 2.25rem; line-height: 1.08; }
+
+  /* Mode switcher stays usable on narrow phones. */
+  .sticky.top-0 > div { min-width: 0; }
+  .sticky.top-0 p { white-space: nowrap; }
+}
+
+@media (max-width: 380px) {
+  main[class*="max-w-"] { padding-left: .875rem !important; padding-right: .875rem !important; }
+  .sticky.top-0 { padding-left: .5rem; padding-right: .5rem; }
+  .sticky.top-0 p { display: none; }
+  .sticky.top-0 button { padding-left: .65rem; padding-right: .65rem; }
 }
