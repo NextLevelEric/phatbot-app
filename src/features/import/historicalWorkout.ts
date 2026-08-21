@@ -10,16 +10,22 @@ function isNotesHeader(value: unknown) { return normalized(value) === "notes"; }
 function isCurrentWeekHeader(value: unknown) { const v = normalized(value); return v.includes("this week") && v.includes("weight"); }
 
 const monthIndex: Record<string, number> = { january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11 };
+function validDate(year:number,month:number,day:number){const d=new Date(Date.UTC(year,month-1,day));return d.getUTCFullYear()===year&&d.getUTCMonth()===month-1&&d.getUTCDate()===day;}
+function isoDate(year:number,month:number,day:number){return validDate(year,month,day)?`${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`:null;}
 
 export function parseWorkoutDate(label: string, defaultYear = new Date().getFullYear()): string | null {
   const raw = label.trim();
   const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (iso) return `${iso[1]}-${iso[2].padStart(2,"0")}-${iso[3].padStart(2,"0")}`;
+  if (iso) return isoDate(Number(iso[1]),Number(iso[2]),Number(iso[3]));
+
+  // Common Excel display formats: 8/18/2025, 8/18/25, 8/18.
+  const numeric = raw.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2}|\d{4}))?$/);
+  if(numeric){let year=Number(numeric[3]??defaultYear);if(year<100)year+=year>=70?1900:2000;return isoDate(year,Number(numeric[1]),Number(numeric[2]));}
+
   const match = raw.toLowerCase().match(/^(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?$/);
   if (!match) return null;
   const year = Number(match[3] ?? defaultYear); const month = monthIndex[match[1]] + 1; const day = Number(match[2]);
-  if (day < 1 || day > 31) return null;
-  return `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+  return isoDate(year,month,day);
 }
 
 /** Parse one spreadsheet performance cell into one or more load/rep sets.
