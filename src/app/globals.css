@@ -18,51 +18,19 @@
 }
 
 * { box-sizing: border-box; }
-
-html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-  background: var(--phat-bg);
-}
-
-html, body {
-  margin: 0;
-  min-height: 100%;
-  background: var(--phat-bg);
-  overflow-x: hidden;
-}
-
-body {
-  min-height: 100vh;
-  min-height: 100dvh;
-  font-family: Arial, Helvetica, sans-serif;
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(--phat-bg); }
+html, body { margin: 0; min-height: 100%; background: var(--phat-bg); overflow-x: hidden; }
+body { min-height: 100vh; min-height: 100dvh; font-family: Arial, Helvetica, sans-serif; padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom); }
 button, input, select, textarea { font: inherit; }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 button, a { touch-action: manipulation; }
-
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--phat-accent);
-  outline-offset: 2px;
-}
-
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--phat-accent); outline-offset: 2px; }
 ::selection { background: var(--phat-accent); color: white; }
-
 input, select, textarea { max-width: 100%; }
 textarea { resize: vertical; }
-
 p, h1, h2, h3, label { overflow-wrap: anywhere; }
 a, button, p.text-2xl, p.text-3xl, p.text-4xl { overflow-wrap: normal; word-break: normal; }
 
-/* PHATBOT visual primitives. Keep the product mostly monochrome and reserve red for attention and action. */
 .phat-surface { background: var(--phat-surface); border-color: var(--phat-border); }
 .phat-surface-raised { background: var(--phat-surface-raised); border-color: var(--phat-border); }
 .phat-accent { color: var(--phat-accent); }
@@ -71,82 +39,41 @@ a, button, p.text-2xl, p.text-3xl, p.text-4xl { overflow-wrap: normal; word-brea
 .phat-accent-border { border-color: var(--phat-accent); }
 .phat-signal { border-color: rgba(255, 0, 50, 0.42); background: var(--phat-accent-soft); }
 
-/* Athlete dashboard: red is reserved for the primary training action and robot-generated attention states. */
-main.max-w-2xl > a:last-child {
-  background: var(--phat-accent);
-  color: white;
-  border: 1px solid var(--phat-accent);
-  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
-}
-main.max-w-2xl > a:last-child:hover {
-  background: var(--phat-accent-hover);
-  border-color: var(--phat-accent-hover);
-}
+/* Athlete dashboard */
+main.max-w-2xl > a:last-child { background: var(--phat-accent); color: white; border: 1px solid var(--phat-accent); transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease; }
+main.max-w-2xl > a:last-child:hover { background: var(--phat-accent-hover); border-color: var(--phat-accent-hover); }
 main.max-w-2xl > a:last-child:active { transform: translateY(1px); }
-
-main.max-w-2xl > section:has(button.underline) {
-  border-color: rgba(255, 0, 50, 0.42);
-  background: linear-gradient(135deg, var(--phat-accent-soft), rgba(18, 18, 20, 0.72) 55%);
-}
+main.max-w-2xl > section:has(button.underline) { border-color: rgba(255, 0, 50, 0.42); background: linear-gradient(135deg, var(--phat-accent-soft), rgba(18, 18, 20, 0.72) 55%); }
 main.max-w-2xl > section:has(button.underline) > p:first-child { color: var(--phat-accent); }
-main.max-w-2xl > section:has(button.underline) button.underline {
-  color: var(--phat-accent);
-  text-decoration-color: rgba(255, 0, 50, 0.55);
-}
+main.max-w-2xl > section:has(button.underline) button.underline { color: var(--phat-accent); text-decoration-color: rgba(255, 0, 50, 0.55); }
 main.max-w-2xl > section:has(button.underline) button.underline:hover { color: #ff335b; }
-
-main.max-w-2xl > section:has(> a[href*="/report"]) {
-  border-color: rgba(255, 0, 50, 0.28);
-}
+main.max-w-2xl > section:has(> a[href*="/report"]) { border-color: rgba(255, 0, 50, 0.28); }
 main.max-w-2xl > section:has(> a[href*="/report"]) > p:first-child { color: var(--phat-accent); }
-
-main.max-w-2xl > section:has(> a[href^="/sessions/"]:not([href*="/report"])) {
-  border-color: rgba(255, 0, 50, 0.38);
-}
+main.max-w-2xl > section:has(> a[href^="/sessions/"]:not([href*="/report"])) { border-color: rgba(255, 0, 50, 0.38); }
 main.max-w-2xl > section:has(> a[href^="/sessions/"]:not([href*="/report"])) > p:first-child { color: var(--phat-accent); }
-main.max-w-2xl > section:has(> a[href^="/sessions/"]:not([href*="/report"])) > a {
-  background: var(--phat-accent);
-  color: white;
-}
+main.max-w-2xl > section:has(> a[href^="/sessions/"]:not([href*="/report"])) > a { background: var(--phat-accent); color: white; }
 main.max-w-2xl > section:has(> a[href^="/sessions/"]:not([href*="/report"])) > a:hover { background: var(--phat-accent-hover); }
 
-/* Live workout: data entry stays neutral; the next instruction and decisive actions carry the brand signal. */
-main.max-w-2xl > section:has(select) {
-  background: var(--phat-surface);
-  border-color: var(--phat-border);
-}
-main.max-w-2xl > section:has(select) > div:first-child > span:first-child {
-  background: var(--phat-accent-soft);
-  color: var(--phat-accent);
-  box-shadow: inset 0 0 0 1px rgba(255, 0, 50, 0.32);
-}
-main.max-w-2xl > section:has(select) input:focus,
-main.max-w-2xl > section:has(select) select:focus,
-main.max-w-2xl > section:has(select) textarea:focus {
-  border-color: var(--phat-accent);
-  outline: none;
-  box-shadow: 0 0 0 1px var(--phat-accent);
-}
-main.max-w-2xl > section:has(select) button:not([class*="text-xs"]) {
-  border-color: rgba(255, 0, 50, 0.48);
-  background: rgba(255, 0, 50, 0.06);
-  transition: background-color 160ms ease, border-color 160ms ease;
-}
-main.max-w-2xl > section:has(select) button:not([class*="text-xs"]):hover:not(:disabled) {
-  border-color: var(--phat-accent);
-  background: var(--phat-accent-soft);
-}
-main.max-w-2xl > button:last-child {
-  background: var(--phat-accent);
-  color: white;
-  transition: background-color 160ms ease, transform 160ms ease;
-}
+/* Live workout */
+main.max-w-2xl > section:has(select) { background: var(--phat-surface); border-color: var(--phat-border); }
+main.max-w-2xl > section:has(select) > div:first-child > span:first-child { background: var(--phat-accent-soft); color: var(--phat-accent); box-shadow: inset 0 0 0 1px rgba(255, 0, 50, 0.32); }
+main.max-w-2xl > section:has(select) input:focus, main.max-w-2xl > section:has(select) select:focus, main.max-w-2xl > section:has(select) textarea:focus { border-color: var(--phat-accent); outline: none; box-shadow: 0 0 0 1px var(--phat-accent); }
+main.max-w-2xl > section:has(select) button:not([class*="text-xs"]) { border-color: rgba(255, 0, 50, 0.48); background: rgba(255, 0, 50, 0.06); transition: background-color 160ms ease, border-color 160ms ease; }
+main.max-w-2xl > section:has(select) button:not([class*="text-xs"]):hover:not(:disabled) { border-color: var(--phat-accent); background: var(--phat-accent-soft); }
+main.max-w-2xl > button:last-child { background: var(--phat-accent); color: white; transition: background-color 160ms ease, transform 160ms ease; }
 main.max-w-2xl > button:last-child:hover:not(:disabled) { background: var(--phat-accent-hover); }
 main.max-w-2xl > button:last-child:active:not(:disabled) { transform: translateY(1px); }
-main.max-w-2xl > button:last-child:disabled {
-  background: #3f3f46;
-  color: #a1a1aa;
-}
+main.max-w-2xl > button:last-child:disabled { background: #3f3f46; color: #a1a1aa; }
+
+/* Workout reports: wins and robot signals receive the accent; ordinary telemetry stays monochrome. */
+main.max-w-2xl > section.rounded-3xl { border-color: var(--phat-accent); background: linear-gradient(145deg, rgba(255, 0, 50, 0.13), #09090b 48%); box-shadow: 0 0 42px rgba(255, 0, 50, 0.08); }
+main.max-w-2xl > section.rounded-3xl > p:first-child { color: var(--phat-accent); }
+main.max-w-2xl > section.rounded-3xl > p.text-5xl { color: var(--phat-accent); }
+main.max-w-2xl article:has(span:first-child[class*="font-semibold"]):has(span:first-child) { transition: border-color 160ms ease; }
+main.max-w-2xl article div[class*="border-zinc-700"]:has(span.font-semibold) { border-color: rgba(255, 0, 50, 0.38); background: rgba(255, 0, 50, 0.06); }
+main.max-w-2xl article div[class*="border-zinc-700"]:has(span.font-semibold) span.font-semibold { color: var(--phat-accent); }
+main.max-w-2xl > div.grid:last-child > a:last-child { background: var(--phat-accent); color: white; }
+main.max-w-2xl > div.grid:last-child > a:last-child:hover { background: var(--phat-accent-hover); }
 
 @media (max-width: 640px) {
   input, select, textarea { font-size: 16px; }
