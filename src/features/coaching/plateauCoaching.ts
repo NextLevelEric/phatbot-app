@@ -7,6 +7,7 @@ export type PlateauCoachingInput = {
 };
 
 export type PlateauRecommendation = {
+  exerciseName: string;
   headline: string;
   body: string;
   action: string;
@@ -34,6 +35,7 @@ export function buildPlateauRecommendation(input: PlateauCoachingInput): Plateau
     : ", prioritize clean controlled reps, and rebuild from there.";
 
   return {
+    exerciseName,
     headline: `${exerciseName} has been flat for ${consecutiveFlatSessions} sessions.`,
     body: "No robot panic. Repeating the same performance is useful information, but this is a good time to create a small reset instead of forcing another identical attempt.",
     action: `${loadText}${repText}`,
