@@ -71,6 +71,45 @@ a, button, p.text-2xl, p.text-3xl, p.text-4xl { overflow-wrap: normal; word-brea
 .phat-accent-border { border-color: var(--phat-accent); }
 .phat-signal { border-color: rgba(255, 0, 50, 0.42); background: var(--phat-accent-soft); }
 
+/* Athlete dashboard: red is reserved for the primary training action and robot-generated attention states. */
+main.max-w-2xl > a:last-child {
+  background: var(--phat-accent);
+  color: white;
+  border: 1px solid var(--phat-accent);
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+main.max-w-2xl > a:last-child:hover {
+  background: var(--phat-accent-hover);
+  border-color: var(--phat-accent-hover);
+}
+main.max-w-2xl > a:last-child:active { transform: translateY(1px); }
+
+main.max-w-2xl > section:has(button.underline) {
+  border-color: rgba(255, 0, 50, 0.42);
+  background: linear-gradient(135deg, var(--phat-accent-soft), rgba(18, 18, 20, 0.72) 55%);
+}
+main.max-w-2xl > section:has(button.underline) > p:first-child { color: var(--phat-accent); }
+main.max-w-2xl > section:has(button.underline) button.underline {
+  color: var(--phat-accent);
+  text-decoration-color: rgba(255, 0, 50, 0.55);
+}
+main.max-w-2xl > section:has(button.underline) button.underline:hover { color: #ff335b; }
+
+main.max-w-2xl > section:has(> a[href*="/report"]) {
+  border-color: rgba(255, 0, 50, 0.28);
+}
+main.max-w-2xl > section:has(> a[href*="/report"]) > p:first-child { color: var(--phat-accent); }
+
+main.max-w-2xl > section:has(> a[href^="/sessions/"]:not([href*="/report"])) {
+  border-color: rgba(255, 0, 50, 0.38);
+}
+main.max-w-2xl > section:has(> a[href^="/sessions/"]:not([href*="/report"])) > p:first-child { color: var(--phat-accent); }
+main.max-w-2xl > section:has(> a[href^="/sessions/"]:not([href*="/report"])) > a {
+  background: var(--phat-accent);
+  color: white;
+}
+main.max-w-2xl > section:has(> a[href^="/sessions/"]:not([href*="/report"])) > a:hover { background: var(--phat-accent-hover); }
+
 @media (max-width: 640px) {
   input, select, textarea { font-size: 16px; }
   button, a.rounded-lg, a.rounded-xl { min-height: 44px; }
