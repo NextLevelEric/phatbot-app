@@ -1,0 +1,78 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
+import type { PlateauRecommendation } from "@/features/coaching/plateauCoaching";
+
+type Props = {
+  workoutSessionId: string;
+  exerciseSessionId: string;
+  exerciseId: string;
+  recommendation: PlateauRecommendation;
+};
+
+export function PlateauRecommendationCard({ workoutSessionId, exerciseSessionId, exerciseId, recommendation }: Props) {
+  const [accepted, setAccepted] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const supabase = createSupabaseBrowserClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data } = await supabase
+        .from("exercise_coaching_adjustments")
+        .select("id")
+        .eq("athlete_user_id", user.id)
+        .eq("exercise_session_id", exerciseSessionId)
+        .eq("adjustment_type", "plateau_rebuild")
+        .maybeSingle();
+      if (!cancelled) setAccepted(Boolean(data));
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [exerciseSessionId]);
+
+  async function acceptRecommendation() {
+    if (accepted || working) return;
+    setWorking(true);
+    setMessage("");
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { window.location.href = "/auth"; return; }
+      const { error } = await supabase.from("exercise_coaching_adjustments").upsert({
+        athlete_user_id: user.id,
+        workout_session_id: workoutSessionId,
+        exercise_session_id: exerciseSessionId,
+        exercise_id: exerciseId,
+        adjustment_type: "plateau_rebuild",
+        source: "phatbot",
+        suggested_weight: recommendation.suggestedWeight,
+        accepted_at: new Date().toISOString(),
+      }, { onConflict: "exercise_session_id,adjustment_type" });
+      if (error) { setMessage(error.message); return; }
+      setAccepted(true);
+      setMessage("Adjustment accepted. PHATBOT will treat this as an intentional rebuild, not an ordinary regression.");
+    } catch {
+      setMessage("PHATBOT could not save that coaching decision. Please try again.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return <div className={`mt-4 rounded-xl border p-4 ${accepted ? "border-[#ff0032] bg-[#ff0032]/15" : "border-[#ff0032]/50 bg-[#ff0032]/10"}`}>
+    <p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">🤖 PHATBOT NOTE</p>
+    <p className="mt-2 font-bold">{recommendation.headline}</p>
+    <p className="mt-2 text-sm leading-6 text-zinc-300">{recommendation.body}</p>
+    <p className="mt-3 rounded-lg bg-black/30 px-3 py-2 text-sm font-semibold text-white">Recommended adjustment: {recommendation.action}</p>
+    {accepted ? <div className="mt-3 rounded-lg border border-[#ff0032]/40 bg-black/20 px-3 py-3">
+      <p className="text-sm font-bold text-[#ff0032]">✓ PHATBOT recommendation accepted</p>
+      <p className="mt-1 text-xs text-zinc-400">This exercise is marked as a deliberate coaching adjustment for this workout.</p>
+    </div> : <button type="button" disabled={working} onClick={acceptRecommendation} className="mt-3 w-full rounded-lg bg-[#ff0032] px-4 py-3 text-sm font-bold text-white hover:bg-[#e6002d] disabled:opacity-50">{working ? "PHATBOT Saving..." : "Follow PHATBOT Recommendation"}</button>}
+    <p className="mt-2 text-[11px] text-zinc-500">PHATBOT never changes your load automatically. You remain in control of what you enter.</p>
+    {message && <p className="mt-2 text-xs text-zinc-300">{message}</p>}
+  </div>;
+}
