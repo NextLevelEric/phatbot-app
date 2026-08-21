@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { syncAthleteRebuildProgress } from "@/features/coaching/rebuildProgress";
 
 type RawSet = { weight: number; reps: number; set_type: string };
 type Exposure = { exerciseSessionId: string; exerciseName: string; completedAt: string; strength: number };
@@ -89,5 +90,10 @@ export async function syncAthletePlateauSignals(supabase: SupabaseClient, athlet
     if (error) throw error;
     results.push({ exerciseId, status: active ? "active" : "resolved", consecutiveFlatSessions });
   }
+
+  // Rebuild progression is evaluated after plateau state so a completed workout can
+  // advance an accepted PHATBOT intervention and, when appropriate, resolve the plateau.
+  await syncAthleteRebuildProgress(supabase, athleteUserId);
+
   return results;
 }
