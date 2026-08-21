@@ -12,6 +12,8 @@ type Props = {
   onAccepted?: () => void;
 };
 
+const PROTECTED_REBUILD_MARKER = "PHATBOT planned rebuild";
+
 export function PlateauRecommendationCard({ workoutSessionId, exerciseSessionId, exerciseId, recommendation, onAccepted }: Props) {
   const [accepted, setAccepted] = useState(false);
   const [working, setWorking] = useState(false);
@@ -55,9 +57,19 @@ export function PlateauRecommendationCard({ workoutSessionId, exerciseSessionId,
         accepted_at: new Date().toISOString(),
       }, { onConflict: "exercise_session_id,adjustment_type" });
       if (error) { setMessage(error.message); return; }
+
+      const { data: exerciseRow, error: noteReadError } = await supabase.from("exercise_sessions").select("notes").eq("id", exerciseSessionId).single();
+      if (noteReadError) { setMessage("Recommendation saved, but PHATBOT could not protect the scoring state yet. Please try again before completing the workout."); return; }
+      const currentNotes = (exerciseRow?.notes ?? "").trim();
+      const protectedNotes = currentNotes.toLowerCase().includes(PROTECTED_REBUILD_MARKER.toLowerCase())
+        ? currentNotes
+        : [currentNotes, PROTECTED_REBUILD_MARKER].filter(Boolean).join(" · ");
+      const { error: noteWriteError } = await supabase.from("exercise_sessions").update({ notes: protectedNotes }).eq("id", exerciseSessionId);
+      if (noteWriteError) { setMessage("Recommendation saved, but PHATBOT could not protect the scoring state yet. Please try again before completing the workout."); return; }
+
       setAccepted(true);
       onAccepted?.();
-      setMessage("Adjustment accepted. PHATBOT will treat this as an intentional rebuild, not an ordinary regression.");
+      setMessage("Adjustment accepted. PHATBOT will score this as an intentional rebuild rather than an ordinary regression.");
     } catch {
       setMessage("PHATBOT could not save that coaching decision. Please try again.");
     } finally {
@@ -72,7 +84,7 @@ export function PlateauRecommendationCard({ workoutSessionId, exerciseSessionId,
     <p className="mt-3 rounded-lg bg-black/30 px-3 py-2 text-sm font-semibold text-white">Recommended adjustment: {recommendation.action}</p>
     {accepted ? <div className="mt-3 rounded-lg border border-[#ff0032]/40 bg-black/20 px-3 py-3">
       <p className="text-sm font-bold text-[#ff0032]">✓ PHATBOT recommendation accepted</p>
-      <p className="mt-1 text-xs text-zinc-400">This exercise is marked as a deliberate coaching adjustment for this workout.</p>
+      <p className="mt-1 text-xs text-zinc-400">This exercise is protected as a deliberate coaching adjustment for this workout.</p>
     </div> : <button type="button" disabled={working} onClick={acceptRecommendation} className="mt-3 w-full rounded-lg bg-[#ff0032] px-4 py-3 text-sm font-bold text-white hover:bg-[#e6002d] disabled:opacity-50">{working ? "PHATBOT Saving..." : "Follow PHATBOT Recommendation"}</button>}
     <p className="mt-2 text-[11px] text-zinc-500">PHATBOT never changes your load automatically. You remain in control of what you enter.</p>
     {message && <p className="mt-2 text-xs text-zinc-300">{message}</p>}
