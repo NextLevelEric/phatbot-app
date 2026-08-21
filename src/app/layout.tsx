@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import ScorePersistenceAgent from "@/components/ScorePersistenceAgent";
 import RoleModeSwitcher from "@/components/RoleModeSwitcher";
+import AthleteHomeLink from "@/components/AthleteHomeLink";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <ScorePersistenceAgent />
         <RoleModeSwitcher />
+        <AthleteHomeLink />
         {children}
       </body>
     </html>
