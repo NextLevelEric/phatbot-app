@@ -9,9 +9,10 @@ type Props = {
   exerciseSessionId: string;
   exerciseId: string;
   recommendation: PlateauRecommendation;
+  onAccepted?: () => void;
 };
 
-export function PlateauRecommendationCard({ workoutSessionId, exerciseSessionId, exerciseId, recommendation }: Props) {
+export function PlateauRecommendationCard({ workoutSessionId, exerciseSessionId, exerciseId, recommendation, onAccepted }: Props) {
   const [accepted, setAccepted] = useState(false);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
@@ -55,6 +56,7 @@ export function PlateauRecommendationCard({ workoutSessionId, exerciseSessionId,
       }, { onConflict: "exercise_session_id,adjustment_type" });
       if (error) { setMessage(error.message); return; }
       setAccepted(true);
+      onAccepted?.();
       setMessage("Adjustment accepted. PHATBOT will treat this as an intentional rebuild, not an ordinary regression.");
     } catch {
       setMessage("PHATBOT could not save that coaching decision. Please try again.");
