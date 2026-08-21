@@ -110,6 +110,44 @@ main.max-w-2xl > section:has(> a[href^="/sessions/"]:not([href*="/report"])) > a
 }
 main.max-w-2xl > section:has(> a[href^="/sessions/"]:not([href*="/report"])) > a:hover { background: var(--phat-accent-hover); }
 
+/* Live workout: data entry stays neutral; the next instruction and decisive actions carry the brand signal. */
+main.max-w-2xl > section:has(select) {
+  background: var(--phat-surface);
+  border-color: var(--phat-border);
+}
+main.max-w-2xl > section:has(select) > div:first-child > span:first-child {
+  background: var(--phat-accent-soft);
+  color: var(--phat-accent);
+  box-shadow: inset 0 0 0 1px rgba(255, 0, 50, 0.32);
+}
+main.max-w-2xl > section:has(select) input:focus,
+main.max-w-2xl > section:has(select) select:focus,
+main.max-w-2xl > section:has(select) textarea:focus {
+  border-color: var(--phat-accent);
+  outline: none;
+  box-shadow: 0 0 0 1px var(--phat-accent);
+}
+main.max-w-2xl > section:has(select) button:not([class*="text-xs"]) {
+  border-color: rgba(255, 0, 50, 0.48);
+  background: rgba(255, 0, 50, 0.06);
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+main.max-w-2xl > section:has(select) button:not([class*="text-xs"]):hover:not(:disabled) {
+  border-color: var(--phat-accent);
+  background: var(--phat-accent-soft);
+}
+main.max-w-2xl > button:last-child {
+  background: var(--phat-accent);
+  color: white;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+main.max-w-2xl > button:last-child:hover:not(:disabled) { background: var(--phat-accent-hover); }
+main.max-w-2xl > button:last-child:active:not(:disabled) { transform: translateY(1px); }
+main.max-w-2xl > button:last-child:disabled {
+  background: #3f3f46;
+  color: #a1a1aa;
+}
+
 @media (max-width: 640px) {
   input, select, textarea { font-size: 16px; }
   button, a.rounded-lg, a.rounded-xl { min-height: 44px; }
