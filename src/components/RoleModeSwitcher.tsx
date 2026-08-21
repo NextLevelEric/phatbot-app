@@ -49,7 +49,7 @@ export default function RoleModeSwitcher() {
     <div className="sticky top-0 z-50 border-b border-zinc-800 bg-black/95 px-3 py-2 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <img src="/branding/Donut%20PHAT%20BOT%20(1).png" alt="PHATBOT" className="h-8 w-8 shrink-0 rounded-full object-contain" />
+          <img src="/branding/PHATbot%20ICON.png" alt="PHATBOT" className="h-8 w-8 shrink-0 object-contain" />
           <p className="min-w-0 text-xs font-semibold uppercase tracking-[.16em] text-zinc-500">PHATBOT Mode</p>
         </div>
         <div className="flex shrink-0 rounded-lg border border-zinc-700 p-1 text-xs font-bold">
