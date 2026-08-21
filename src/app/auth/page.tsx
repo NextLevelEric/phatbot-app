@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 const AUTH_TIMEOUT_MS = 12000;
+const MODE_KEY = "phatbot:preferred-mode";
 
 export default function AuthPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signup");
@@ -24,8 +25,19 @@ export default function AuthPage() {
       if (mode === "signup" && !result.data.session) { setMessage("Account created. Check your email to confirm your account, then sign in."); return; }
       const userId = result.data.user?.id;
       if (mode === "signin" && userId) {
-        const { data: coach } = await supabase.from("coach_profiles").select("user_id").eq("user_id", userId).maybeSingle();
-        if (coach) { window.location.href = "/coach"; return; }
+        const [{ data: coach }, { data: athlete }] = await Promise.all([
+          supabase.from("coach_profiles").select("user_id").eq("user_id", userId).maybeSingle(),
+          supabase.from("athlete_profiles").select("user_id").eq("user_id", userId).maybeSingle(),
+        ]);
+        if (coach) {
+          let preferred: "athlete" | "coach" | null = null;
+          try {
+            const saved = localStorage.getItem(MODE_KEY);
+            if (saved === "athlete" || saved === "coach") preferred = saved;
+          } catch {}
+          if (coach && athlete && preferred === "athlete") { window.location.href = "/"; return; }
+          window.location.href = "/coach"; return;
+        }
       }
       window.location.href = "/";
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to contact the authentication service. Please try again."); }
