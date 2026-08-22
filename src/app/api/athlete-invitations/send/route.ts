@@ -2,13 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
-function getAppUrl(request: Request) {
+function getAppUrl() {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (configured) return configured.replace(/\/$/, "");
-  const origin = new URL(request.url).origin;
-  if (!origin.includes("localhost") && !origin.includes("127.0.0.1")) return origin;
-  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
-  return vercelHost ? `https://${vercelHost}` : origin;
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (productionHost) return `https://${productionHost}`;
+  return "https://phatbot-app.vercel.app";
 }
 
 function activationUrl(appUrl: string, hashedToken: string, type: string) {
@@ -44,7 +43,7 @@ export async function POST(request: Request) {
     if (!athleteEmail || !athleteEmail.includes("@")) return NextResponse.json({ error: "Enter a valid athlete email." }, { status: 400 });
     if (athleteEmail === user.email?.toLowerCase()) return NextResponse.json({ error: "Use a different email for the athlete." }, { status: 400 });
 
-    const appUrl = getAppUrl(request);
+    const appUrl = getAppUrl();
     let athleteUserId: string;
     let joinUrl: string;
     let status: "invited" | "resent" | "linked" = "invited";
