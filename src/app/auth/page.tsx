@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
@@ -9,6 +9,10 @@ const AUTH_TIMEOUT_MS = 12000;
 const MODE_KEY = "phatbot:preferred-mode";
 
 export default function AuthPage() {
+  return <Suspense fallback={<main className="mx-auto min-h-screen max-w-md px-6 py-12 text-zinc-300">Beep boop... loading PHATBOT.</main>}><AuthContent /></Suspense>;
+}
+
+function AuthContent() {
   const search = useSearchParams();
   const invited = search.get("invited") === "1";
   const invitedEmail = search.get("email") ?? "";
@@ -18,38 +22,22 @@ export default function AuthPage() {
   const [message, setMessage] = useState(invited ? "This athlete account was created by your coach. Open the PHATBOT invitation email to activate it and create your password." : "");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (invitedEmail) setEmail(invitedEmail);
-  }, [invitedEmail]);
+  useEffect(() => { if (invitedEmail) setEmail(invitedEmail); }, [invitedEmail]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setLoading(true); setMessage("");
     try {
-      if (invited && mode === "signup") {
-        setMessage("Your coach already created this PHATBOT account. Use the activation link in the latest PHATBOT invitation email instead of creating another account.");
-        return;
-      }
       const supabase = createSupabaseBrowserClient();
       const authRequest = mode === "signup" ? supabase.auth.signUp({ email, password }) : supabase.auth.signInWithPassword({ email, password });
       const timeout = new Promise<never>((_, reject) => { window.setTimeout(() => reject(new Error("Authentication request timed out. Check the Supabase URL/key configuration and try again.")), AUTH_TIMEOUT_MS); });
       const result = await Promise.race([authRequest, timeout]);
       if (result.error) { setMessage(result.error.message); return; }
       if (mode === "signup" && !result.data.session) { setMessage("Account created. Check your email to confirm your account, then sign in."); return; }
-
       const userId = result.data.user?.id;
       if (userId) await supabase.rpc("claim_my_athlete_invitations");
-
       if (mode === "signin" && userId) {
-        const [{ data: coach }, { data: athlete }] = await Promise.all([
-          supabase.from("coach_profiles").select("user_id").eq("user_id", userId).maybeSingle(),
-          supabase.from("athlete_profiles").select("user_id").eq("user_id", userId).maybeSingle(),
-        ]);
-        if (coach) {
-          let preferred: "athlete" | "coach" | null = null;
-          try { const saved = localStorage.getItem(MODE_KEY); if (saved === "athlete" || saved === "coach") preferred = saved; } catch {}
-          if (coach && athlete && preferred === "athlete") { window.location.href = "/"; return; }
-          window.location.href = "/coach"; return;
-        }
+        const [{ data: coach }, { data: athlete }] = await Promise.all([supabase.from("coach_profiles").select("user_id").eq("user_id", userId).maybeSingle(),supabase.from("athlete_profiles").select("user_id").eq("user_id", userId).maybeSingle()]);
+        if (coach) { let preferred: "athlete" | "coach" | null = null; try { const saved = localStorage.getItem(MODE_KEY); if (saved === "athlete" || saved === "coach") preferred = saved; } catch {} if (coach && athlete && preferred === "athlete") { window.location.href = "/"; return; } window.location.href = "/coach"; return; }
       }
       window.location.href = "/";
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to contact the authentication service. Please try again."); }
