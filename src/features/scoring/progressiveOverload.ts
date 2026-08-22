@@ -21,6 +21,7 @@ export type ExerciseScoreResult = {
 };
 
 const MIN_REPS_FOR_WEIGHT_INCREASE_WIN = 3;
+const MIN_REPS_FOR_ADDED_SET_WIN = 3;
 
 const progressionNoteTerms = [
   "better form", "improved form", "improved my form", "improving form", "improve my form", "improve form", "cleaner form",
@@ -52,6 +53,17 @@ function bestSet(performance: ExercisePerformance): PerformanceSet | null {
   })[0];
 }
 
+function hasQualifyingAddedSet(current: ExercisePerformance, previous: ExercisePerformance) {
+  const currentSets = comparableSets(current);
+  const previousSets = comparableSets(previous);
+
+  if (currentSets.length <= previousSets.length) return false;
+
+  return currentSets
+    .slice(previousSets.length)
+    .some((set) => set.reps >= MIN_REPS_FOR_ADDED_SET_WIN);
+}
+
 export function scoreExercisePerformance(current: ExercisePerformance, previous: ExercisePerformance | null): ExerciseScoreResult {
   const currentBest = bestSet(current);
   const previousBest = previous ? bestSet(previous) : null;
@@ -70,6 +82,7 @@ export function scoreExercisePerformance(current: ExercisePerformance, previous:
   const notes = current.notes ?? "";
   const qualityImproved = includesAny(notes, progressionNoteTerms);
   const plannedReset = includesAny(notes, resetNoteTerms);
+  const addedSetWin = hasQualifyingAddedSet(current, previous);
 
   if (currentBest.weight > previousBest.weight) {
     if (currentBest.reps >= MIN_REPS_FOR_WEIGHT_INCREASE_WIN) {
@@ -79,6 +92,7 @@ export function scoreExercisePerformance(current: ExercisePerformance, previous:
         currentBest, previousBest,
       };
     }
+    if (addedSetWin) return { result: "progression", score: 1, explanationCode: "added_set_three_plus_reps", currentBest, previousBest };
     return { result: "neutral", score: 0.5, explanationCode: qualityImproved ? "higher_weight_quality_focus" : "higher_weight_under_three_reps", currentBest, previousBest };
   }
 
@@ -87,13 +101,16 @@ export function scoreExercisePerformance(current: ExercisePerformance, previous:
     if (currentBest.reps === previousBest.reps) {
       if (currentBest.partialReps > previousBest.partialReps) return { result: "progression", score: 1, explanationCode: "same_weight_reps_more_partials", currentBest, previousBest };
       if (qualityImproved) return { result: "progression", score: 1, explanationCode: "same_numbers_improved_quality", currentBest, previousBest };
+      if (addedSetWin) return { result: "progression", score: 1, explanationCode: "added_set_three_plus_reps", currentBest, previousBest };
       return { result: "neutral", score: 0.5, explanationCode: "matched_previous_performance", currentBest, previousBest };
     }
+    if (addedSetWin) return { result: "progression", score: 1, explanationCode: "added_set_three_plus_reps", currentBest, previousBest };
     if (qualityImproved) return { result: "neutral", score: 0.5, explanationCode: "fewer_reps_improved_quality", currentBest, previousBest };
     if (plannedReset) return { result: "neutral", score: 0.5, explanationCode: "fewer_reps_planned_reset", currentBest, previousBest };
     return { result: "regression", score: 0, explanationCode: "same_weight_fewer_reps", currentBest, previousBest };
   }
 
+  if (addedSetWin) return { result: "progression", score: 1, explanationCode: "added_set_three_plus_reps", currentBest, previousBest };
   if (qualityImproved) return { result: "neutral", score: 0.5, explanationCode: "lower_weight_improved_quality", currentBest, previousBest };
   if (plannedReset) return { result: "neutral", score: 0.5, explanationCode: "lower_weight_planned_reset", currentBest, previousBest };
   return { result: "regression", score: 0, explanationCode: "lower_weight", currentBest, previousBest };
@@ -109,6 +126,7 @@ export function explainExerciseScore(code: string) {
     same_weight_more_reps: "Progression: you completed more full reps at the same weight.",
     same_weight_reps_more_partials: "Progression: full reps matched and you added lengthened partials.",
     same_numbers_improved_quality: "Progression: the numbers matched and your notes show better execution. Cleaner reps are real progress. Beep boop.",
+    added_set_three_plus_reps: "Progression: you added a working set beyond your previous workout and completed at least 3 full reps. PHATBOT counts the added training volume as a win.",
     matched_previous_performance: "Neutral: you matched your previous best performance.",
     fewer_reps_improved_quality: "Neutral by design: reps were lower, but your notes show improved form, control, tempo, or range of motion. Good training decision. PHATBOT protects quality work from a negative score.",
     fewer_reps_planned_reset: "Neutral: reps were lower, but your notes indicate a planned technique or recovery reset.",
