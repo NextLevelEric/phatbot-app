@@ -54,7 +54,7 @@ export function RebuildProgressCard({ workoutSessionId }: { workoutSessionId: st
 
   return <section className="flex flex-col gap-3">
     {rows.map((row) => {
-      const message = rebuildCoachingMessage({ stage: row.stage, exerciseName: row.exercise_name, progressPercent: row.progress_from_rebuild_percent });
+      const message = rebuildCoachingMessage({ stage: row.stage, exerciseName: row.exercise_name, progressPercent: row.progress_from_rebuild_percent, postRebuildSessions: row.post_rebuild_sessions });
       return <div key={row.exercise_id} className={`rounded-2xl border p-6 ${row.stage === "plateau_cleared" ? "border-[#ff0032]/60 bg-[#ff0032]/10" : "border-zinc-700 bg-zinc-950"}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-black uppercase tracking-[.22em] text-[#ff0032]">PHATBOT REBUILD STATUS</p>
