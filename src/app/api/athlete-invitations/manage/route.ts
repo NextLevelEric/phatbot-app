@@ -2,13 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
-function getAppUrl(request: Request) {
+function getAppUrl() {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (configured) return configured.replace(/\/$/, "");
-  const origin = new URL(request.url).origin;
-  if (!origin.includes("localhost") && !origin.includes("127.0.0.1")) return origin;
-  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
-  return vercelHost ? `https://${vercelHost}` : origin;
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (productionHost) return `https://${productionHost}`;
+  return "https://phatbot-app.vercel.app";
 }
 
 async function context(request: Request) {
@@ -31,17 +30,35 @@ export async function GET(request: Request) {
   const ctx = await context(request);
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { user, admin } = ctx;
+
   const { data: links, error } = await admin.from("coach_athletes").select("athlete_user_id").eq("coach_user_id", user.id).eq("active", true);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const rows = [] as { athleteUserId: string; email: string; name: string; createdAt: string | null }[];
+
+  const invites: { kind:"workspace"; athleteUserId:string; email:string; name:string; createdAt:string|null }[] = [];
   for (const link of links ?? []) {
     const { data: authUser } = await admin.auth.admin.getUserById(link.athlete_user_id);
     const athlete = authUser.user;
     if (!athlete || athlete.last_sign_in_at) continue;
     const { data: profile } = await admin.from("profiles").select("display_name").eq("id", athlete.id).maybeSingle();
-    rows.push({ athleteUserId: athlete.id, email: athlete.email ?? "", name: profile?.display_name ?? "Athlete", createdAt: athlete.created_at ?? null });
+    invites.push({ kind:"workspace", athleteUserId:athlete.id, email:athlete.email ?? "", name:profile?.display_name ?? "Athlete", createdAt:athlete.created_at ?? null });
   }
-  return NextResponse.json({ invites: rows });
+
+  const { data: legacy, error: legacyError } = await admin.from("athlete_invitations")
+    .select("id,athlete_email,athlete_name,created_at")
+    .eq("coach_user_id", user.id)
+    .eq("status", "pending")
+    .order("created_at", { ascending:false });
+  if (legacyError) return NextResponse.json({ error: legacyError.message }, { status:500 });
+
+  const legacyInvites = (legacy ?? []).map(row => ({
+    kind:"legacy" as const,
+    invitationId:row.id,
+    email:row.athlete_email,
+    name:row.athlete_name ?? "Invited Athlete",
+    createdAt:row.created_at ?? null,
+  }));
+
+  return NextResponse.json({ invites, legacyInvites });
 }
 
 export async function POST(request: Request) {
@@ -51,6 +68,17 @@ export async function POST(request: Request) {
     const { user, admin } = ctx;
     const body = await request.json();
     const action = String(body.action ?? "");
+
+    if (action === "cancel_legacy") {
+      const invitationId = String(body.invitationId ?? "");
+      if (!invitationId) return NextResponse.json({ error:"Invitation is required." }, { status:400 });
+      const { data: invite } = await admin.from("athlete_invitations").select("id").eq("id",invitationId).eq("coach_user_id",user.id).eq("status","pending").maybeSingle();
+      if (!invite) return NextResponse.json({ error:"Pending invitation not found." }, { status:404 });
+      const { error: deleteError } = await admin.from("athlete_invitations").delete().eq("id",invitationId).eq("coach_user_id",user.id);
+      if (deleteError) return NextResponse.json({ error:deleteError.message }, { status:500 });
+      return NextResponse.json({ ok:true });
+    }
+
     const athleteUserId = String(body.athleteUserId ?? "");
     if (!athleteUserId) return NextResponse.json({ error: "Athlete is required." }, { status: 400 });
     const { data: link } = await admin.from("coach_athletes").select("athlete_user_id").eq("coach_user_id", user.id).eq("athlete_user_id", athleteUserId).eq("active", true).maybeSingle();
@@ -64,7 +92,7 @@ export async function POST(request: Request) {
       const resendKey = process.env.RESEND_API_KEY;
       const emailDomain = process.env.RESEND_EMAIL_DOMAIN;
       if (!resendKey || !emailDomain) return NextResponse.json({ error: "Email service is not configured." }, { status: 500 });
-      const appUrl = getAppUrl(request);
+      const appUrl = getAppUrl();
       const { data: generated, error: generateError } = await admin.auth.admin.generateLink({ type: "magiclink", email: athlete.email, options: { redirectTo: `${appUrl}/auth/accept-athlete-invite` } });
       if (generateError) return NextResponse.json({ error: generateError.message }, { status: 500 });
       const joinUrl = `${appUrl}/auth/accept-athlete-invite?token_hash=${encodeURIComponent(generated.properties.hashed_token)}&type=${encodeURIComponent(generated.properties.verification_type)}`;
