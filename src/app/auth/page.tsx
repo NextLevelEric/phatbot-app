@@ -22,8 +22,16 @@ export default function AuthPage() {
       const timeout = new Promise<never>((_, reject) => { window.setTimeout(() => reject(new Error("Authentication request timed out. Check the Supabase URL/key configuration and try again.")), AUTH_TIMEOUT_MS); });
       const result = await Promise.race([authRequest, timeout]);
       if (result.error) { setMessage(result.error.message); return; }
-      if (mode === "signup" && !result.data.session) { setMessage("Account created. Check your email to confirm your account, then sign in."); return; }
+      if (mode === "signup" && !result.data.session) { setMessage("Account created. Check your email to confirm your account, then sign in. Your coach invitation will connect automatically after you sign in."); return; }
+
       const userId = result.data.user?.id;
+      if (userId) {
+        // If this email was invited by a coach, claim every active invitation now.
+        // Existing athletes are linked immediately when invited; new athletes are
+        // connected here after their account exists and the email has been verified.
+        await supabase.rpc("claim_my_athlete_invitations");
+      }
+
       if (mode === "signin" && userId) {
         const [{ data: coach }, { data: athlete }] = await Promise.all([
           supabase.from("coach_profiles").select("user_id").eq("user_id", userId).maybeSingle(),
