@@ -2,7 +2,16 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
-const PUBLIC_APP_URL = "https://phatbot-app.vercel.app";
+function getAppUrl(request: Request) {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+
+  const origin = new URL(request.url).origin;
+  if (!origin.includes("localhost") && !origin.includes("127.0.0.1")) return origin;
+
+  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  return vercelHost ? `https://${vercelHost}` : origin;
+}
 
 export async function POST(request: Request) {
   try {
@@ -33,6 +42,7 @@ export async function POST(request: Request) {
     if (!athleteEmail || !athleteEmail.includes("@")) return NextResponse.json({ error: "Enter a valid athlete email." }, { status: 400 });
     if (athleteEmail === user.email?.toLowerCase()) return NextResponse.json({ error: "Use a different email for the athlete." }, { status: 400 });
 
+    const appUrl = getAppUrl(request);
     let athleteUserId: string | null = null;
     let actionLink: string | null = null;
 
@@ -46,7 +56,7 @@ export async function POST(request: Request) {
       const { data: generated, error: generateError } = await admin.auth.admin.generateLink({
         type: "invite",
         email: athleteEmail,
-        options: { redirectTo: `${PUBLIC_APP_URL}/auth/accept-athlete-invite`, data: athleteName ? { display_name: athleteName } : undefined },
+        options: { redirectTo: `${appUrl}/auth/accept-athlete-invite`, data: athleteName ? { display_name: athleteName } : undefined },
       });
       if (generateError || !generated.user) return NextResponse.json({ error: generateError?.message ?? "Unable to create athlete account." }, { status: 500 });
       athleteUserId = generated.user.id;
@@ -60,7 +70,7 @@ export async function POST(request: Request) {
 
     const { data: coachProfile } = await admin.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
     const coachName = coachProfile?.display_name?.trim() || "Your coach";
-    const joinUrl = actionLink || `${PUBLIC_APP_URL}/auth?email=${encodeURIComponent(athleteEmail)}`;
+    const joinUrl = actionLink || `${appUrl}/auth?email=${encodeURIComponent(athleteEmail)}`;
     const resend = new Resend(resendKey);
     const { error: emailError } = await resend.emails.send({
       from: `PHATBOT <invites@${emailDomain}>`,
@@ -77,5 +87,5 @@ export async function POST(request: Request) {
 }
 
 function escapeHtml(value: string) {
-  return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char] ?? char));
+  return value.replace(/[&<>'\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '\"': "&quot;" }[char] ?? char));
 }
