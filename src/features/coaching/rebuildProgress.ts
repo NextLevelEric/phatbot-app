@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type RawSet = { weight: number; reps: number; set_type: string };
 type Stage = "rebuild_started" | "baseline_established" | "rebuilding_progress" | "plateau_cleared";
 
+const MIN_POST_REBUILD_SESSIONS_TO_CLEAR = 2;
+
 function estimatedStrength(weight: number, reps: number) {
   if (weight <= 0 || reps <= 0) return 0;
   return weight * (1 + reps / 30);
@@ -91,7 +93,7 @@ export async function syncAthleteRebuildProgress(supabase: SupabaseClient, athle
     let stage: Stage = "rebuild_started";
     if (postRebuildSessions >= 1) stage = "baseline_established";
     if (postRebuildSessions >= 1 && progressFromRebuild >= 1) stage = "rebuilding_progress";
-    if (postRebuildSessions >= 1 && recoveryToPreRebuild >= 1) stage = "plateau_cleared";
+    if (postRebuildSessions >= MIN_POST_REBUILD_SESSIONS_TO_CLEAR && recoveryToPreRebuild >= 1) stage = "plateau_cleared";
 
     const now = new Date().toISOString();
     const { error } = await supabase.from("exercise_rebuild_progress").upsert({
@@ -122,10 +124,11 @@ export async function syncAthleteRebuildProgress(supabase: SupabaseClient, athle
   return results;
 }
 
-export function rebuildCoachingMessage(input: { stage: Stage; exerciseName: string; progressPercent?: number | null }) {
+export function rebuildCoachingMessage(input: { stage: Stage; exerciseName: string; progressPercent?: number | null; postRebuildSessions?: number | null }) {
   const progress = input.progressPercent ?? 0;
+  const sessions = input.postRebuildSessions ?? 0;
   if (input.stage === "rebuild_started") return { headline: "Rebuild started.", body: `${input.exerciseName} is in a deliberate reset. Clean reps first. No need to rush the load.` };
-  if (input.stage === "baseline_established") return { headline: "Baseline established.", body: `${input.exerciseName} has a clean post-rebuild baseline. Hold the quality and build from here.` };
-  if (input.stage === "rebuilding_progress") return { headline: "Rebuild is working.", body: `${input.exerciseName} has moved ${progress >= 0 ? "+" : ""}${progress.toFixed(1)}% from the rebuild baseline. Keep stacking controlled progress.` };
-  return { headline: "Plateau cleared.", body: `${input.exerciseName} has progressed beyond the pre-rebuild strength signal. PHATBOT is closing this intervention and returning the exercise to normal progression.` };
+  if (input.stage === "baseline_established") return { headline: "Baseline established.", body: `${input.exerciseName} has a clean post-rebuild baseline. A PR can happen during a rebuild, but one strong workout does not end the rebuild by itself. PHATBOT wants to see the progress hold across multiple comparable sessions.` };
+  if (input.stage === "rebuilding_progress") return { headline: "Rebuild is working.", body: `${input.exerciseName} has moved ${progress >= 0 ? "+" : ""}${progress.toFixed(1)}% from the rebuild baseline. ${sessions < MIN_POST_REBUILD_SESSIONS_TO_CLEAR ? "That can include a new PR, but PHATBOT is keeping the rebuild active until the progress is repeated across at least two post-rebuild sessions." : "The trend is strengthening. Keep stacking controlled progress until the pre-rebuild plateau is clearly surpassed."}` };
+  return { headline: "Plateau cleared.", body: `${input.exerciseName} has progressed beyond the pre-rebuild strength signal across multiple post-rebuild sessions. PHATBOT is closing this intervention and returning the exercise to normal progression.` };
 }
