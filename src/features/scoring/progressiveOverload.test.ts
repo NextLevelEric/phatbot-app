@@ -9,6 +9,9 @@ describe("PHATBOT progressive overload rules", () => {
   it("treats a heavier load under 3 reps as neutral", () => { expect(score([set(100, 2)], [set(95, 5)]).score).toBe(0.5); });
   it("counts more reps at the same weight as progression", () => { expect(score([set(95, 6)], [set(95, 5)]).score).toBe(1); });
   it("counts added partials after matching full reps as progression", () => { expect(score([set(95, 5, 2)], [set(95, 5, 0)]).score).toBe(1); });
+  it("counts an added working set of at least 3 reps as progression", () => { const result = score([set(95, 5), set(95, 3)], [set(95, 5)]); expect(result.score).toBe(1); expect(result.result).toBe("progression"); expect(result.explanationCode).toBe("added_set_three_plus_reps"); });
+  it("does not count an added working set under 3 reps as progression", () => { const result = score([set(95, 5), set(95, 2)], [set(95, 5)]); expect(result.score).toBe(0.5); expect(result.result).toBe("neutral"); });
+  it("does not count an added warmup set as progression", () => { const result = score([set(95, 5), set(50, 10, 0, "warmup")], [set(95, 5)]); expect(result.score).toBe(0.5); expect(result.result).toBe("neutral"); });
   it("scores matching performance as neutral", () => { expect(score([set(95, 5)], [set(95, 5)]).score).toBe(0.5); });
   it("scores fewer reps at the same weight as regression without a quality note", () => { expect(score([set(95, 4)], [set(95, 5)]).score).toBe(0); });
   it("protects fewer reps from regression when the athlete improved form", () => { const result = score([set(95, 4)], [set(95, 5)], "Improved my form and controlled the reps better"); expect(result.score).toBe(0.5); expect(result.result).toBe("neutral"); expect(result.explanationCode).toBe("fewer_reps_improved_quality"); });
