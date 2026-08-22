@@ -80,7 +80,7 @@ export default function PlateauReportSignal({ sessionId }: { sessionId: string }
             </div>
           ))}
         </div>
-        <p className="mt-4 text-sm font-semibold text-zinc-200">🤖 Next mission: adjust, rebuild clean reps, then make the machine move again.</p>
+        <p className="mt-4 text-sm font-semibold text-zinc-200">Next mission: adjust, rebuild clean reps, then make the machine move again.</p>
       </section>
     </div>
   );
