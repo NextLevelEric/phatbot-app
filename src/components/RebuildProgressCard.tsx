@@ -10,9 +10,14 @@ type RebuildRow = {
   exercise_name: string;
   rebuild_workout_session_id: string;
   stage: Stage;
+  pre_rebuild_strength: number | null;
   progress_from_rebuild_percent: number | null;
   recovery_to_pre_rebuild_percent: number | null;
   post_rebuild_sessions: number;
+};
+type LaterExerciseRow = {
+  workout_session_id: string;
+  sets: { weight: number; reps: number; set_type: string }[];
 };
 
 const stageLabel: Record<Stage, string> = {
@@ -21,6 +26,17 @@ const stageLabel: Record<Stage, string> = {
   rebuilding_progress: "REBUILDING PROGRESS",
   plateau_cleared: "PLATEAU CLEARED",
 };
+
+function estimatedStrength(weight: number, reps: number) {
+  if (weight <= 0 || reps <= 0) return 0;
+  return weight * (1 + reps / 30);
+}
+
+function bestStrength(sets: LaterExerciseRow["sets"]) {
+  return Math.max(0, ...(sets ?? [])
+    .filter((set) => set.set_type !== "warmup" && Number(set.reps) > 0)
+    .map((set) => estimatedStrength(Number(set.weight), Number(set.reps))));
+}
 
 export function RebuildProgressCard({ workoutSessionId }: { workoutSessionId: string }) {
   const [rows, setRows] = useState<RebuildRow[]>([]);
@@ -33,18 +49,72 @@ export function RebuildProgressCard({ workoutSessionId }: { workoutSessionId: st
       if (!user || cancelled) return;
       const { data, error } = await supabase
         .from("exercise_rebuild_progress")
-        .select("exercise_id,exercise_name,rebuild_workout_session_id,stage,progress_from_rebuild_percent,recovery_to_pre_rebuild_percent,post_rebuild_sessions")
+        .select("exercise_id,exercise_name,rebuild_workout_session_id,stage,pre_rebuild_strength,progress_from_rebuild_percent,recovery_to_pre_rebuild_percent,post_rebuild_sessions")
         .eq("athlete_user_id", user.id)
         .order("updated_at", { ascending: false });
       if (error || cancelled) return;
 
-      // Show a rebuild on its prescribed workout, and on later report views once
-      // the intervention has advanced. The current table stores one lifecycle row
-      // per exercise, so this keeps the signal concise rather than duplicating it.
-      const relevant = ((data ?? []) as RebuildRow[]).filter((row) =>
-        row.rebuild_workout_session_id === workoutSessionId || row.post_rebuild_sessions > 0
-      );
-      setRows(relevant.slice(0, 3));
+      const visible: RebuildRow[] = [];
+      for (const row of (data ?? []) as RebuildRow[]) {
+        if (row.rebuild_workout_session_id === workoutSessionId) {
+          visible.push(row);
+          continue;
+        }
+        if (row.post_rebuild_sessions <= 0) continue;
+
+        // A cleared intervention is historical state, not an active state. Show its
+        // celebration card only on the first workout that actually cleared it.
+        if (row.stage === "plateau_cleared") {
+          if (!row.pre_rebuild_strength) continue;
+          const { data: rebuildWorkout } = await supabase
+            .from("workout_sessions")
+            .select("completed_at")
+            .eq("id", row.rebuild_workout_session_id)
+            .eq("athlete_user_id", user.id)
+            .maybeSingle();
+          if (!rebuildWorkout?.completed_at) continue;
+
+          const { data: laterSessions } = await supabase
+            .from("workout_sessions")
+            .select("id,completed_at")
+            .eq("athlete_user_id", user.id)
+            .eq("status", "completed")
+            .gt("completed_at", rebuildWorkout.completed_at)
+            .order("completed_at", { ascending: true });
+          const laterIds = (laterSessions ?? []).map((session) => session.id);
+          if (!laterIds.length) continue;
+
+          const { data: laterExercises } = await supabase
+            .from("exercise_sessions")
+            .select("workout_session_id,sets(weight,reps,set_type)")
+            .eq("exercise_id", row.exercise_id)
+            .in("workout_session_id", laterIds);
+          const bySession = new Map<string, number>();
+          for (const exercise of (laterExercises ?? []) as LaterExerciseRow[]) {
+            bySession.set(exercise.workout_session_id, bestStrength(exercise.sets ?? []));
+          }
+
+          let exposureCount = 0;
+          let clearingSessionId: string | null = null;
+          for (const session of laterSessions ?? []) {
+            const strength = bySession.get(session.id) ?? 0;
+            if (strength <= 0) continue;
+            exposureCount += 1;
+            const recoveryPercent = ((strength - row.pre_rebuild_strength) / row.pre_rebuild_strength) * 100;
+            if (exposureCount >= 2 && recoveryPercent >= 1) {
+              clearingSessionId = session.id;
+              break;
+            }
+          }
+          if (clearingSessionId === workoutSessionId) visible.push(row);
+          continue;
+        }
+
+        // Active rebuild stages remain visible on later reports while the
+        // intervention is still in progress.
+        visible.push(row);
+      }
+      if (!cancelled) setRows(visible.slice(0, 3));
     }
     load();
     return () => { cancelled = true; };
