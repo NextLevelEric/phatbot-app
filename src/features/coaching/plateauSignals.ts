@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncAthleteRebuildProgress } from "@/features/coaching/rebuildProgress";
+import { scoreExercisePerformance, type PerformanceSet } from "@/features/scoring/progressiveOverload";
 
-type RawSet = { weight: number; reps: number; set_type: string };
-type Exposure = { exerciseSessionId: string; exerciseName: string; completedAt: string; strength: number };
+type RawSet = { weight: number; reps: number; partial_reps?: number; set_type: string };
+type Exposure = { exerciseSessionId: string; exerciseName: string; completedAt: string; strength: number; sets: RawSet[] };
 
 function estimatedStrength(weight: number, reps: number) {
   if (weight <= 0 || reps <= 0) return 0;
@@ -13,6 +14,24 @@ function bestStrength(sets: RawSet[]) {
   return Math.max(0, ...sets
     .filter((set) => set.set_type !== "warmup" && set.reps > 0)
     .map((set) => estimatedStrength(Number(set.weight), Number(set.reps))));
+}
+
+function performanceSets(sets: RawSet[]): PerformanceSet[] {
+  return sets
+    .filter((set) => ["working", "top", "backoff"].includes(set.set_type))
+    .map((set) => ({
+      weight: Number(set.weight),
+      reps: Number(set.reps),
+      partialReps: Number(set.partial_reps ?? 0),
+      setType: set.set_type as PerformanceSet["setType"],
+    }));
+}
+
+function isCanonicalProgression(current: Exposure, previous: Exposure) {
+  const currentSets = performanceSets(current.sets);
+  const previousSets = performanceSets(previous.sets);
+  if (!currentSets.length || !previousSets.length) return false;
+  return scoreExercisePerformance({ sets: currentSets }, { sets: previousSets }).result === "progression";
 }
 
 export async function syncAthletePlateauSignals(supabase: SupabaseClient, athleteUserId: string) {
@@ -30,19 +49,21 @@ export async function syncAthletePlateauSignals(supabase: SupabaseClient, athlet
   const dates = new Map(workoutRows.map((row) => [row.id, row.completed_at as string]));
   const { data: exerciseRows, error: exerciseError } = await supabase
     .from("exercise_sessions")
-    .select("id,exercise_id,exercise_name_snapshot,workout_session_id,sets(weight,reps,set_type)")
+    .select("id,exercise_id,exercise_name_snapshot,workout_session_id,sets(weight,reps,partial_reps,set_type)")
     .in("workout_session_id", workoutRows.map((row) => row.id));
   if (exerciseError) throw exerciseError;
 
   const byExercise = new Map<string, Exposure[]>();
   for (const row of exerciseRows ?? []) {
-    const strength = bestStrength((row.sets ?? []) as RawSet[]);
+    const sets = (row.sets ?? []) as RawSet[];
+    const strength = bestStrength(sets);
     if (strength <= 0) continue;
     const exposure: Exposure = {
       exerciseSessionId: row.id,
       exerciseName: row.exercise_name_snapshot,
       completedAt: dates.get(row.workout_session_id) ?? "",
       strength,
+      sets,
     };
     const list = byExercise.get(row.exercise_id) ?? [];
     list.push(exposure);
@@ -59,7 +80,8 @@ export async function syncAthletePlateauSignals(supabase: SupabaseClient, athlet
     let bestBefore = exposures[0].strength;
     for (let i = 1; i < exposures.length; i += 1) {
       const improvement = bestBefore > 0 ? ((exposures[i].strength - bestBefore) / bestBefore) * 100 : 0;
-      if (improvement >= 1) {
+      const poProgression = isCanonicalProgression(exposures[i], exposures[i - 1]);
+      if (improvement >= 1 || poProgression) {
         bestBefore = Math.max(bestBefore, exposures[i].strength);
         consecutiveFlatSessions = 0;
       } else {
@@ -71,7 +93,8 @@ export async function syncAthletePlateauSignals(supabase: SupabaseClient, athlet
     const baseline = Math.max(...exposures.slice(0, -3).map((item) => item.strength));
     const recentBest = Math.max(...exposures.slice(-3).map((item) => item.strength));
     const changePercent = baseline > 0 ? ((recentBest - baseline) / baseline) * 100 : 0;
-    const active = consecutiveFlatSessions >= 3 && changePercent < 1;
+    const latestIsProgression = exposures.length > 1 && isCanonicalProgression(exposures.at(-1)!, exposures.at(-2)!);
+    const active = !latestIsProgression && consecutiveFlatSessions >= 3 && changePercent < 1;
 
     const payload = {
       athlete_user_id: athleteUserId,
