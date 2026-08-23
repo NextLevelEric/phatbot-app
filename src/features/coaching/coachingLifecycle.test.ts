@@ -40,4 +40,13 @@ describe("PHATBOT coaching lifecycle wiring", () => {
     expect(plateauUpsert).toBeGreaterThan(-1);
     expect(rebuildSync).toBeGreaterThan(plateauUpsert);
   });
+
+  it("keeps active rebuild coaching visible after the plateau signal resolves", () => {
+    const liveCoaching = read("../../components/LiveExerciseCoachingCard.tsx");
+
+    expect(liveCoaching).toContain('from("exercise_rebuild_progress")');
+    expect(liveCoaching).toContain('.neq("stage", "plateau_cleared")');
+    expect(liveCoaching).toContain("Rebuild Active");
+    expect(liveCoaching).toContain("missionFor(activeRebuild)");
+  });
 });
