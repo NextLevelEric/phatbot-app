@@ -47,10 +47,25 @@ export function RebuildProgressCard({ workoutSessionId }: { workoutSessionId: st
       const supabase = createSupabaseBrowserClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelled) return;
+
+      // Workout reports are session-specific. Only surface rebuild status for
+      // exercises that actually appeared in this completed workout.
+      const { data: sessionExercises, error: sessionExerciseError } = await supabase
+        .from("exercise_sessions")
+        .select("exercise_id")
+        .eq("workout_session_id", workoutSessionId);
+      if (sessionExerciseError || cancelled) return;
+      const currentExerciseIds = [...new Set((sessionExercises ?? []).map((row) => row.exercise_id).filter(Boolean))];
+      if (!currentExerciseIds.length) {
+        if (!cancelled) setRows([]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("exercise_rebuild_progress")
         .select("exercise_id,exercise_name,rebuild_workout_session_id,stage,pre_rebuild_strength,progress_from_rebuild_percent,recovery_to_pre_rebuild_percent,post_rebuild_sessions")
         .eq("athlete_user_id", user.id)
+        .in("exercise_id", currentExerciseIds)
         .order("updated_at", { ascending: false });
       if (error || cancelled) return;
 
@@ -110,8 +125,8 @@ export function RebuildProgressCard({ workoutSessionId }: { workoutSessionId: st
           continue;
         }
 
-        // Active rebuild stages remain visible on later reports while the
-        // intervention is still in progress.
+        // Active rebuild stages remain visible on reports where that exercise was
+        // actually trained while the intervention is still in progress.
         visible.push(row);
       }
       if (!cancelled) setRows(visible.slice(0, 3));
