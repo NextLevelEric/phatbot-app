@@ -39,9 +39,13 @@ export function calculateStrengthChange(
     const currentTotal = exerciseLiftTotal(current.sets);
     const previousTotal = exerciseLiftTotal(previous.sets);
 
-    if (currentTotal <= 0 || previousTotal <= 0) continue;
+    // A previously performed exercise that is present in today's workout but
+    // receives no working volume is meaningful workload information. Keep it
+    // in the comparison as zero current volume instead of dropping it and
+    // making an incomplete workout look artificially unchanged or N/A.
+    if (previousTotal <= 0) continue;
 
-    currentLiftTotal += currentTotal;
+    currentLiftTotal += Math.max(currentTotal, 0);
     previousLiftTotal += previousTotal;
     comparableExerciseCount += 1;
   }
