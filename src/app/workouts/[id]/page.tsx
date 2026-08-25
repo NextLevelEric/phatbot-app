@@ -150,7 +150,7 @@ export default function WorkoutDetailPage() {
 
   return <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-6 py-10">
     <header><Link href="/workouts" className="text-sm text-zinc-400 hover:text-white">← My Workouts</Link><p className="mt-6 text-sm font-semibold uppercase tracking-[0.25em] text-zinc-400">PHATBOT Workout Template</p><h1 className="mt-2 text-3xl font-bold">{workout.name}</h1>{description && <p className="mt-2 text-zinc-300">{description}</p>}</header>
-    {message && <p className="rounded-lg border border-zinc-800 p-4 text-sm text-zinc-200">🤖 {message}</p>}
+    {message && <p className="rounded-lg border border-zinc-800 p-4 text-sm text-zinc-200">{message}</p>}
     <button disabled={working || workoutExercises.length === 0} onClick={startWorkout} className="phat-accent-bg rounded-xl px-5 py-4 text-lg font-black text-white disabled:opacity-50">{working ? "PHATBOT Processing..." : `Start ${workout.name}`}</button>
 
     {isCoachAssigned ? <section className="rounded-2xl border border-zinc-800 p-6">
