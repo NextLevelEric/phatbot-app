@@ -57,14 +57,15 @@ describe("canonical PHATBOT workout regression dataset", () => {
 describe("canonical PR scenarios", () => {
   const s = (weight: number, reps: number, setType = "working"): PRSet => ({ weight, reps, setType });
 
-  it("archives a heaviest-weight PR", () => {
+  it("archives a true heaviest-weight PR", () => {
     const prs = detectPersonalRecords([s(405, 3)], [s(385, 4), s(365, 6)]);
-    expect(prs.some((pr) => pr.type === "heaviest_weight" && pr.weight === 405)).toBe(true);
+    expect(prs.some((pr) => pr.type === "heaviest_weight" && pr.classification === "true_pr" && pr.weight === 405)).toBe(true);
   });
 
-  it("archives a matched-load rep PR independently", () => {
-    const prs = detectPersonalRecords([s(225, 10)], [s(225, 8), s(235, 5)]);
-    expect(prs.some((pr) => pr.type === "matched_load_reps" && pr.weight === 225 && pr.previousReps === 8 && pr.reps === 10)).toBe(true);
+  it("tracks matched-load rep improvement as best-at-weight instead of an all-time PR", () => {
+    const milestones = detectPersonalRecords([s(225, 10)], [s(225, 8), s(235, 5)]);
+    expect(milestones.some((record) => record.type === "best_at_weight" && record.classification === "weight_milestone" && record.weight === 225 && record.previousReps === 8 && record.reps === 10)).toBe(true);
+    expect(milestones.some((record) => record.classification === "true_pr")).toBe(false);
   });
 });
 
