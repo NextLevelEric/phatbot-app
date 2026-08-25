@@ -62,20 +62,48 @@ function explainResult(row:ReportRow) {
 }
 function prMessage(pr:PersonalRecordResult,unit:"lb"|"kg") { if(pr.type==="heaviest_weight") return `New weight PR: ${pr.weight} ${unit} × ${pr.reps}. Previous heaviest load was ${pr.previousWeight??"N/A"}${pr.previousWeight===null?"":` ${unit}`}.`; return `Rep PR at ${pr.weight} ${unit}: ${pr.reps} reps, up from ${pr.previousReps??"N/A"}.`; }
 function coachingSummary(input:{score:number|null;strength:number|null;prs:number;progressed:number;neutral:number;regressed:number;unscored:number;completionPercent:number;qualityProtected:boolean;phase:TrainingPhase}) {
-  const {score,strength,prs,progressed,neutral,regressed,unscored,completionPercent,qualityProtected,phase}=input; const cutting=phase==="cut";
+  const {score,strength,prs,progressed,neutral,regressed,unscored,completionPercent,qualityProtected,phase}=input;
+  const cutting=phase==="cut";
+  const volumeDown = strength !== null && strength <= -10;
+  const volumeWayDown = strength !== null && strength <= -20;
+  const volumeUp = strength !== null && strength >= 5;
+  const volumeWayUp = strength !== null && strength >= 20;
+  const volumeText = strength===null ? "" : ` Comparable training volume was ${strength>=0?"up":"down"} ${Math.abs(strength).toFixed(1)}% versus the last comparable workout.`;
+
   if(completionPercent===0) return {headline:"No scored work logged.",body:"PHATBOT found no completed scored exercises in this session, so it will not call this a baseline, progression, or regression. Log training work before using this session for performance decisions."};
+
   if(completionPercent<70&&score!==null){
-    if(progressed>0) return {headline:"Progression detected, but workload was incomplete.",body:`You progressed on the work PHATBOT could score, but completed only ${completionPercent}% of the programmed exercises. ${unscored} exercise${unscored===1?" was":"s were"} unscored. Your ${score}% Progressive Overload Score reflects the work you performed, not the overall training load.${strength!==null?` Comparable training volume was ${strength>=0?"up":"down"} ${Math.abs(strength).toFixed(1)}% versus the last comparable workout.`:""}`};
-    if(regressed>0) return {headline:"Reduced workload and a tougher scored set today.",body:`You completed only ${completionPercent}% of the programmed exercises, and the scored work came down on ${regressed} exercise${regressed===1?"":"s"}. ${unscored} exercise${unscored===1?" was":"s were"} unscored.${strength!==null?` Comparable training volume was ${strength>=0?"up":"down"} ${Math.abs(strength).toFixed(1)}% versus the last comparable workout.`:""} PHATBOT will treat this as an incomplete session, not a full-workout verdict.`};
-    return {headline:"Workout was incomplete.",body:`You completed only ${completionPercent}% of the programmed exercises. ${unscored} exercise${unscored===1?" was":"s were"} unscored, so PHATBOT is keeping the interpretation conservative.${strength!==null?` Comparable training volume was ${strength>=0?"up":"down"} ${Math.abs(strength).toFixed(1)}% versus the last comparable workout.`:""}`};
+    if(progressed>0&&volumeDown) return {headline:"Performance moved forward, but workload was light.",body:`You progressed on ${progressed} scored exercise${progressed===1?"":"s"}, but completed only ${completionPercent}% of the programmed workout.${volumeText} If recovery and execution were still strong, this is a signal that you may have had room for another productive set or exercise before calling the session.`};
+    if(progressed>0) return {headline:"Progression detected, but the workout was incomplete.",body:`You progressed on the work PHATBOT could score, but completed only ${completionPercent}% of the programmed exercises. ${unscored} exercise${unscored===1?" was":"s were"} unscored. Your ${score}% Progressive Overload Score reflects the work you performed, not the overall training load.${volumeText}`};
+    if(regressed>0) return {headline:"Reduced workload and a tougher scored set today.",body:`You completed only ${completionPercent}% of the programmed exercises, and the scored work came down on ${regressed} exercise${regressed===1?"":"s"}. ${unscored} exercise${unscored===1?" was":"s were"} unscored.${volumeText} PHATBOT will treat this as an incomplete session, not a full-workout verdict.`};
+    return {headline:"Workout was incomplete.",body:`You completed only ${completionPercent}% of the programmed exercises. ${unscored} exercise${unscored===1?" was":"s were"} unscored, so PHATBOT is keeping the interpretation conservative.${volumeText}`};
   }
+
   if(score===null) return {headline:"Baseline locked in.",body:`Beep boop. First comparable workout detected. PHATBOT has the starting point now.${cutting?" During this cut, the goal is to preserve as much strength and training quality as possible while we watch the trend.":" Keep training and the next pass will tell us exactly where you moved forward."}`};
-  if(prs>0&&score>=75) return {headline:"That’s progress.",body:`Beep boop. You stacked ${progressed} progressive overload win${progressed===1?"":"s"} and logged ${prs} lifting milestone${prs===1?"":"s"}. ${strength!==null&&strength>0?`Comparable training volume also moved up ${strength.toFixed(1)}%. `:""}Hardware functioning beautifully.`};
-  if(score>=80) return {headline:"Strong workout detected.",body:`You won on ${progressed} exercise${progressed===1?"":"s"} and finished with a ${score}% Progressive Overload Score. ${strength!==null&&strength>0?`Comparable training volume climbed ${strength.toFixed(1)}%. `:""}${cutting?"Progress while calories are restricted is bonus territory. ":""}That is the kind of session PHATBOT likes to archive.`};
-  if(score>=60) return {headline:cutting?"Cut signal looks healthy.":"Positive signal.",body:`You made progress on ${progressed} exercise${progressed===1?"":"s"} and held steady on ${neutral}. ${regressed>0?`${regressed} came down a little, but the overall signal is still productive. `:""}Keep stacking clean reps and small wins.`};
-  if(score>=40) return {headline:"Pretty flat today.",body:`PHATBOT saw ${neutral} neutral exercise${neutral===1?"":"s"}${progressed>0?` and ${progressed} win${progressed===1?"":"s"}`:""}. ${qualityProtected?"Some of your work was intentionally protected for better execution. ":""}Recover, come back, and give this workout another clean shot.`};
-  if(qualityProtected) return {headline:"Numbers dipped, but context matters.",body:"Some loads or reps came down, but your notes show intentional technique or quality work. PHATBOT protected that decision from being treated like failure. Rebuild from here."};
-  return {headline:"A tougher session today.",body:`Numbers came down on ${regressed} exercise${regressed===1?"":"s"}. It happens. No robot panic. Review recovery and come back ready to attack the same lifts again.`};
+
+  if(prs>0&&volumeWayDown) return {headline:"New best detected, but total workload was lower.",body:`You logged ${prs} lifting milestone${prs===1?"":"s"} and ${progressed} progressive overload win${progressed===1?"":"s"}.${volumeText} The performance win is real, but it does not tell the whole workout story. If recovery felt good, consider whether another productive set would have brought the session closer to your normal workload.`};
+
+  if(prs>0&&score>=75&&volumeUp) return {headline:"New best plus stronger workload.",body:`You stacked ${progressed} progressive overload win${progressed===1?"":"s"}, logged ${prs} lifting milestone${prs===1?"":"s"}, and comparable training volume increased ${strength!.toFixed(1)}%. That is a strong combination of performance and workload. No need to add work just to chase a bigger number.`};
+
+  if(score>=80&&volumeWayDown) return {headline:"Strong performance, reduced workload.",body:`Your ${score}% Progressive Overload Score says the work you completed was strong.${volumeText} If the lower workload was intentional, that is fine. If not, and recovery still felt good, another productive set or exercise may have been appropriate.`};
+
+  if(score>=80&&volumeUp) return {headline:"Strong performance and strong workload.",body:`You won on ${progressed} exercise${progressed===1?"":"s"}, finished with a ${score}% Progressive Overload Score, and comparable training volume climbed ${strength!.toFixed(1)}%. This is the kind of session PHATBOT wants to archive. More work is not automatically better from here.`};
+
+  if(volumeWayUp&&score<50) return {headline:"More work, but not better work.",body:`Training volume increased ${strength!.toFixed(1)}%, but the Progressive Overload Score was ${score}%. You did more total work without matching your usual performance quality. Watch fatigue, exercise order, and recovery before adding even more volume.`};
+
+  if(score>=80) return {headline:"Strong workout detected.",body:`You won on ${progressed} exercise${progressed===1?"":"s"} and finished with a ${score}% Progressive Overload Score.${volumeText}${cutting?" Progress while calories are restricted is bonus territory.":""} That is the kind of session PHATBOT likes to archive.`};
+
+  if(score>=60) return {headline:cutting?"Cut signal looks healthy.":"Positive signal.",body:`You made progress on ${progressed} exercise${progressed===1?"":"s"} and held steady on ${neutral}.${regressed>0?` ${regressed} came down a little, but the overall signal is still productive.`:""}${volumeText} Keep stacking clean reps and small wins.`};
+
+  if(score>=40&&volumeDown) return {headline:"Performance held better than workload.",body:`PHATBOT saw ${neutral} neutral exercise${neutral===1?"":"s"}${progressed>0?` and ${progressed} win${progressed===1?"":"s"}`:""}.${volumeText} That can be completely intentional, but if this was meant to be a normal training day, the workload gap is worth watching.`};
+
+  if(score>=40) return {headline:"Pretty flat today.",body:`PHATBOT saw ${neutral} neutral exercise${neutral===1?"":"s"}${progressed>0?` and ${progressed} win${progressed===1?"":"s"}`:""}.${volumeText}${qualityProtected?" Some of your work was intentionally protected for better execution.":""} Recover, come back, and give this workout another clean shot.`};
+
+  if(qualityProtected) return {headline:"Numbers dipped, but context matters.",body:`Some loads or reps came down, but your notes show intentional technique or quality work. PHATBOT protected that decision from being treated like failure.${volumeText} Rebuild from here.`};
+
+  if(volumeWayDown) return {headline:"A tougher session with less total work.",body:`Numbers came down on ${regressed} exercise${regressed===1?"":"s"}.${volumeText} This is a stronger recovery signal than either metric alone. Review sleep, stress, soreness, and nutrition before forcing more volume next time.`};
+
+  return {headline:"A tougher session today.",body:`Numbers came down on ${regressed} exercise${regressed===1?"":"s"}.${volumeText} It happens. No robot panic. Review recovery and come back ready to attack the same lifts again.`};
 }
 
 export default function WorkoutReportPage(){
