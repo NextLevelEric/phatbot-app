@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { reportClientError } from "@/lib/clientErrorReporter";
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error("PHATBOT route error", error);
+    reportClientError("route_error_boundary", error);
   }, [error]);
 
   return (
