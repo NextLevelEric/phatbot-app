@@ -16,11 +16,18 @@ function fallbackTarget(item: WorkoutExercise) {
   return [];
 }
 
+function importedCoachId(description: string | null) {
+  if (!description) return null;
+  const match = description.match(/^Imported by coach\s+([0-9a-f-]{36})$/i);
+  return match?.[1] ?? null;
+}
+
 export default function WorkoutDetailPage() {
   const params = useParams<{ id: string }>();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [workoutExercises, setWorkoutExercises] = useState<WorkoutExercise[]>([]);
   const [availableExercises, setAvailableExercises] = useState<Exercise[]>([]);
+  const [coachDisplayName, setCoachDisplayName] = useState("");
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
@@ -40,7 +47,14 @@ export default function WorkoutDetailPage() {
       supabase.from("workout_exercises").select("id, position, target_rep_min, target_rep_max, prescribed_set_targets, exercise:exercises(id, name, muscle_group, equipment)").eq("workout_id", params.id).order("position", { ascending: true }),
       supabase.from("exercises").select("id, name, muscle_group, equipment").eq("is_active", true).order("name", { ascending: true }),
     ]);
-    if (workoutResult.error) { setMessage(workoutResult.error.message); setWorkout(null); } else setWorkout(workoutResult.data);
+    if (workoutResult.error) { setMessage(workoutResult.error.message); setWorkout(null); } else {
+      setWorkout(workoutResult.data);
+      const coachId = importedCoachId(workoutResult.data.description);
+      if (coachId) {
+        const { data: coachProfile } = await supabase.from("profiles").select("display_name").eq("id", coachId).maybeSingle();
+        setCoachDisplayName(coachProfile?.display_name?.trim() ?? "");
+      } else setCoachDisplayName("");
+    }
     if (workoutExercisesResult.error) setMessage(workoutExercisesResult.error.message); else {
       const rows = (workoutExercisesResult.data ?? []) as unknown as WorkoutExercise[];
       setWorkoutExercises(rows);
@@ -130,8 +144,11 @@ export default function WorkoutDetailPage() {
   if (loading) return <main className="mx-auto min-h-screen max-w-2xl px-6 py-12 text-zinc-300">Beep boop... loading workout template.</main>;
   if (!workout) return <main className="mx-auto min-h-screen max-w-2xl px-6 py-12"><p>{message || "Workout not found."}</p><Link href="/workouts" className="mt-6 inline-block underline">Back to My Workouts</Link></main>;
 
+  const coachId = importedCoachId(workout.description);
+  const description = coachId ? `Assigned by ${coachDisplayName || "your coach"}` : workout.description;
+
   return <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-6 py-10">
-    <header><Link href="/workouts" className="text-sm text-zinc-400 hover:text-white">← My Workouts</Link><p className="mt-6 text-sm font-semibold uppercase tracking-[0.25em] text-zinc-400">PHATBOT Workout Template</p><h1 className="mt-2 text-3xl font-bold">{workout.name}</h1>{workout.description && <p className="mt-2 text-zinc-300">{workout.description}</p>}</header>
+    <header><Link href="/workouts" className="text-sm text-zinc-400 hover:text-white">← My Workouts</Link><p className="mt-6 text-sm font-semibold uppercase tracking-[0.25em] text-zinc-400">PHATBOT Workout Template</p><h1 className="mt-2 text-3xl font-bold">{workout.name}</h1>{description && <p className="mt-2 text-zinc-300">{description}</p>}</header>
     {message && <p className="rounded-lg border border-zinc-800 p-4 text-sm text-zinc-200">🤖 {message}</p>}
     <button disabled={working || workoutExercises.length === 0} onClick={startWorkout} className="phat-accent-bg rounded-xl px-5 py-4 text-lg font-black text-white disabled:opacity-50">{working ? "PHATBOT Processing..." : `Start ${workout.name}`}</button>
     <section className="rounded-2xl border border-zinc-800 p-6"><div className="flex items-center justify-between gap-4"><div><h2 className="text-xl font-semibold">Exercises</h2><p className="mt-1 text-sm text-zinc-400">Review or edit the exercise order and targets below.</p></div><button onClick={() => setShowAdd((v) => !v)} className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black">{showAdd ? "Done" : "+ Add Exercise"}</button></div>
