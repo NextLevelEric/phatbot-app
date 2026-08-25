@@ -3,6 +3,7 @@ import ScorePersistenceAgent from "@/components/ScorePersistenceAgent";
 import RoleModeSwitcher from "@/components/RoleModeSwitcher";
 import AthleteHomeLink from "@/components/AthleteHomeLink";
 import LiveWorkoutAccordion from "@/components/LiveWorkoutAccordion";
+import LiveWorkoutConnectionStatus from "@/components/LiveWorkoutConnectionStatus";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <RoleModeSwitcher />
         <AthleteHomeLink />
         <LiveWorkoutAccordion />
+        <LiveWorkoutConnectionStatus />
         {children}
       </body>
     </html>
