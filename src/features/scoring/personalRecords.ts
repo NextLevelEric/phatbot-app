@@ -1,3 +1,5 @@
+import { isPrEligibleSetType } from "@/features/scoring/setTypes";
+
 export type PRSet = {
   weight: number;
   reps: number;
@@ -15,7 +17,7 @@ export type PersonalRecordResult = {
 };
 
 function scoredSets(sets: PRSet[]) {
-  return sets.filter((set) => set.setType !== "warmup" && set.reps > 0);
+  return sets.filter((set) => isPrEligibleSetType(set.setType) && set.reps > 0);
 }
 
 export function detectPersonalRecords(currentSets: PRSet[], historicalSets: PRSet[]): PersonalRecordResult[] {
