@@ -8,7 +8,8 @@ export type PRSet = {
 };
 
 export type PersonalRecordResult = {
-  type: "heaviest_weight" | "matched_load_reps";
+  type: "heaviest_weight" | "best_at_weight";
+  classification: "true_pr" | "weight_milestone";
   weight: number;
   reps: number;
   previousWeight: number | null;
@@ -23,19 +24,20 @@ function scoredSets(sets: PRSet[]) {
 export function detectPersonalRecords(currentSets: PRSet[], historicalSets: PRSet[]): PersonalRecordResult[] {
   const current = scoredSets(currentSets);
   const history = scoredSets(historicalSets);
-  if (current.length === 0) return [];
+  if (current.length === 0 || history.length === 0) return [];
 
   const records: PersonalRecordResult[] = [];
-  const previousMaxWeight = history.length ? Math.max(...history.map((set) => set.weight)) : null;
+  const previousMaxWeight = Math.max(...history.map((set) => set.weight));
   const currentMaxWeight = Math.max(...current.map((set) => set.weight));
 
-  if (previousMaxWeight !== null && currentMaxWeight > previousMaxWeight) {
+  if (currentMaxWeight > previousMaxWeight) {
     const bestAtNewWeight = current
       .filter((set) => set.weight === currentMaxWeight)
       .sort((a, b) => b.reps - a.reps)[0];
 
     records.push({
       type: "heaviest_weight",
+      classification: "true_pr",
       weight: bestAtNewWeight.weight,
       reps: bestAtNewWeight.reps,
       previousWeight: previousMaxWeight,
@@ -56,12 +58,13 @@ export function detectPersonalRecords(currentSets: PRSet[], historicalSets: PRSe
     const previousBestReps = Math.max(...previousAtWeight.map((historical) => historical.reps));
     if (set.reps > previousBestReps) {
       records.push({
-        type: "matched_load_reps",
+        type: "best_at_weight",
+        classification: "weight_milestone",
         weight,
         reps: set.reps,
         previousWeight: weight,
         previousReps: previousBestReps,
-        message: `Rep PR at ${weight}: ${set.reps} reps, up from ${previousBestReps}.`,
+        message: `Best reps at ${weight}: ${set.reps}, up from ${previousBestReps}.`,
       });
     }
   }
