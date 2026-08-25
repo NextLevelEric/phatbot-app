@@ -1,3 +1,5 @@
+import { isVolumeSetType } from "@/features/scoring/setTypes";
+
 export type StrengthSet = {
   weight: number;
   reps: number;
@@ -18,7 +20,7 @@ export type StrengthChangeResult = {
 
 function exerciseLiftTotal(sets: StrengthSet[]) {
   return sets
-    .filter((set) => set.setType !== "warmup" && set.reps > 0 && set.weight >= 0)
+    .filter((set) => isVolumeSetType(set.setType) && set.reps > 0 && set.weight >= 0)
     .reduce((sum, set) => sum + (set.weight * set.reps), 0);
 }
 
