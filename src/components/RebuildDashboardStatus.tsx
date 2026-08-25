@@ -72,7 +72,8 @@ export function RebuildDashboardStatus() {
       <h2 className="mt-1 text-xl font-bold">Rebuilds in progress</h2>
     </div>
     {rows.map((row) => {
-      const progress = signedPercent(row.progress_from_rebuild_percent);
+      const hasMeaningfulProgress = row.post_rebuild_sessions > 0 && row.progress_from_rebuild_percent !== null && Math.abs(row.progress_from_rebuild_percent) >= 0.05;
+      const progress = hasMeaningfulProgress ? signedPercent(row.progress_from_rebuild_percent) : null;
       return <Link key={row.exercise_id} href={`/progress/exercises?exercise=${encodeURIComponent(row.exercise_id)}`} className="rounded-2xl border border-zinc-700 p-5 transition hover:border-[#ff0032]/60">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -82,7 +83,7 @@ export function RebuildDashboardStatus() {
           <span className="shrink-0 rounded-full bg-[#ff0032]/10 px-3 py-1 text-[10px] font-black tracking-wider text-[#ff0032]">{stageLabel[row.stage]}</span>
         </div>
         {progress && <p className="mt-3 text-sm font-bold text-white">{progress} from rebuild baseline</p>}
-        <p className="mt-1 text-sm leading-6 text-zinc-300">{homeSummary(row)}</p>
+        <p className={`${progress ? "mt-1" : "mt-3"} text-sm leading-6 text-zinc-300`}>{homeSummary(row)}</p>
         <p className="mt-3 text-sm font-semibold">Review exercise →</p>
       </Link>;
     })}
