@@ -70,6 +70,23 @@ main.max-w-2xl > button:last-child:hover:not(:disabled) { background: var(--phat
 main.max-w-2xl > button:last-child:active:not(:disabled) { transform: translateY(1px); }
 main.max-w-2xl > button:last-child:disabled { background: #3f3f46; color: #a1a1aa; }
 
+/* A progression is a status, not a reorder control. Make the live win unmistakable. */
+span[aria-label="progression"] {
+  width: auto !important;
+  min-width: 4.8rem;
+  padding: 0 .65rem;
+  border-radius: 9999px;
+  font-size: 0 !important;
+  white-space: nowrap;
+}
+span[aria-label="progression"]::before {
+  content: "🏆 WIN";
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  line-height: 1;
+}
+
 /* Workout reports: wins and robot signals receive the accent; ordinary telemetry stays monochrome. */
 main.max-w-2xl > section.rounded-3xl { border-color: var(--phat-accent); background: linear-gradient(145deg, rgba(255, 0, 50, 0.13), #09090b 48%); box-shadow: 0 0 42px rgba(255, 0, 50, 0.08); }
 main.max-w-2xl > section.rounded-3xl > p:first-child { color: var(--phat-accent); }
