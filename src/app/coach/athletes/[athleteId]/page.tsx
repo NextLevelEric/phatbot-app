@@ -48,18 +48,22 @@ export default function CoachAthletePage(){
   const sessions=(ss??[])as Session[],bySession=new Map<string,Ex[]>();
   for(const row of(exerciseRows??[])as unknown as ExRow[]){const list=bySession.get(row.workout_session_id)??[];list.push({exercise_id:row.exercise_id,exercise_name_snapshot:row.exercise_name_snapshot,position:row.position,notes:row.notes,sets:row.sets??[]});bySession.set(row.workout_session_id,list);}for(const list of bySession.values())list.sort((a,b)=>a.position-b.position);
   const reviewed=new Set((feedback??[]).map(x=>x.workout_session_id));
-  const built:Report[]=[],history=new Map<string,{name:string;date:string;sets:RawSet[]}[]>(),prHistory=new Map<string,RawSet[]>(),lastWorkout=new Map<string,Session>();
+  const built:Report[]=[],history=new Map<string,{name:string;date:string;sets:RawSet[]}[]>(),prHistory=new Map<string,RawSet[]>(),lastWorkoutById=new Map<string,Session>(),lastWorkoutByName=new Map<string,Session>(),lastExercise=new Map<string,Ex>();
   for(const session of sessions){
    const cur=bySession.get(session.id)??[],sessionPRs:PR[]=[];
    for(const x of cur){const oldSets=prHistory.get(x.exercise_id)??[];for(const pr of detectPersonalRecords(prs(x.sets??[]),prs(oldSets)))sessionPRs.push({exerciseId:x.exercise_id,exercise:x.exercise_name_snapshot,message:pr.message});prHistory.set(x.exercise_id,[...oldSets,...(x.sets??[])]);const a=history.get(x.exercise_id)??[];a.push({name:x.exercise_name_snapshot,date:session.completed_at,sets:x.sets??[]});history.set(x.exercise_id,a);}
    const needsReview=new Date(session.completed_at)>=new Date(link.created_at)&&!reviewed.has(session.id);
-   const workoutKey=session.workout_id??session.workout_name_snapshot.toLowerCase();const prior=lastWorkout.get(workoutKey);
-   if(!prior){built.push({...session,score:null,volume:null,prs:sessionPRs,needsReview});lastWorkout.set(workoutKey,session);continue;}
-   const old=bySession.get(prior.id)??[],first=[...cur].sort((a,b)=>a.position-b.position)[0],pf=first?old.find(x=>x.exercise_id===first.exercise_id):null,fs=first?norm(first.sets).filter(x=>x.setType!=="warmup").slice(0,3):[],ps=pf?norm(pf.sets).filter(x=>x.setType!=="warmup").slice(0,3):[];
+   const nameKey=session.workout_name_snapshot.trim().toLowerCase();
+   const priorWorkout=(session.workout_id?lastWorkoutById.get(session.workout_id):undefined)??lastWorkoutByName.get(nameKey);
+   const sameWorkoutOld=priorWorkout?(bySession.get(priorWorkout.id)??[]):[];
+   const priorFor=(exercise:Ex)=>sameWorkoutOld.find(x=>x.exercise_id===exercise.exercise_id)??lastExercise.get(exercise.exercise_id)??null;
+   const first=[...cur].sort((a,b)=>a.position-b.position)[0],pf=first?priorFor(first):null,fs=first?norm(first.sets).filter(x=>x.setType!=="warmup").slice(0,3):[],ps=pf?norm(pf.sets).filter(x=>x.setType!=="warmup").slice(0,3):[];
    const top=fs.map((set,i)=>scoreExercisePerformance({sets:[set]},ps[i]?{sets:[ps[i]]}:null)).filter(x=>x.result!=="baseline"),ta=top.length?top.reduce((s,x)=>s+x.score,0)/top.length:null;
-   const acc=cur.filter(x=>x.position>1).map(x=>{const q=old.find(y=>y.exercise_id===x.exercise_id);return scoreExercisePerformance({sets:norm(x.sets),notes:x.notes},q?{sets:norm(q.sets),notes:q.notes}:null);}).filter(x=>x.result!=="baseline"),aa=acc.length?acc.reduce((s,x)=>s+x.score,0)/acc.length:null,raw=ta===null?aa:aa===null?ta:ta*.6+aa*.4;
-   const volume=calculateStrengthChange(cur.map(x=>({exerciseId:x.exercise_id,sets:x.sets.map(s=>({weight:Number(s.weight),reps:s.reps,setType:s.set_type}))})),old.map(x=>({exerciseId:x.exercise_id,sets:x.sets.map(s=>({weight:Number(s.weight),reps:s.reps,setType:s.set_type}))}))).percentageChange;
-   built.push({...session,score:raw===null?null:Math.round(raw*100),volume,prs:sessionPRs,needsReview});lastWorkout.set(workoutKey,session);
+   const acc=cur.filter(x=>x.position>1).map(x=>{const q=priorFor(x);return scoreExercisePerformance({sets:norm(x.sets),notes:x.notes},q?{sets:norm(q.sets),notes:q.notes}:null);}).filter(x=>x.result!=="baseline"),aa=acc.length?acc.reduce((s,x)=>s+x.score,0)/acc.length:null,raw=ta===null?aa:aa===null?ta:ta*.6+aa*.4;
+   const comparableCurrent=cur.filter(x=>priorFor(x)!==null),comparablePrior=comparableCurrent.map(x=>priorFor(x)!).filter(Boolean);
+   const volume=comparableCurrent.length?calculateStrengthChange(comparableCurrent.map(x=>({exerciseId:x.exercise_id,sets:x.sets.map(s=>({weight:Number(s.weight),reps:s.reps,setType:s.set_type}))})),comparablePrior.map(x=>({exerciseId:x.exercise_id,sets:x.sets.map(s=>({weight:Number(s.weight),reps:s.reps,setType:s.set_type}))}))).percentageChange:null;
+   built.push({...session,score:raw===null?null:Math.round(raw*100),volume,prs:sessionPRs,needsReview});
+   if(session.workout_id)lastWorkoutById.set(session.workout_id,session);lastWorkoutByName.set(nameKey,session);for(const x of cur)lastExercise.set(x.exercise_id,x);
   }
   const pl:Plateau[]=[];for(const[id,h]of history){const r=[...h].sort((a,b)=>+new Date(b.date)-+new Date(a.date)).slice(0,3),bs=r.map(item=>({item,b:best(item.sets)})).filter(x=>x.b)as{item:{name:string;date:string;sets:RawSet[]};b:RawSet}[];if(bs.length<3)continue;const change=est(bs[2].b)>0?(est(bs[0].b)-est(bs[2].b))/est(bs[2].b)*100:0,progress=bs.slice(0,2).some((x,i)=>Number(x.b.weight)>Number(bs[i+1].b.weight)||(Number(x.b.weight)===Number(bs[i+1].b.weight)&&x.b.reps>bs[i+1].b.reps));if(!progress&&change<1)pl.push({exerciseId:id,exercise:bs[0].item.name,recentBest:`${bs[0].b.weight} ${ap?.preferred_unit==="kg"?"kg":"lb"} × ${bs[0].b.reps}`,change});}
   if(cancelled)return;setPlateaus(pl.slice(0,6));setReports(built.reverse());setLoading(false);
