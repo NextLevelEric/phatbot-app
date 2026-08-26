@@ -1,4 +1,4 @@
-export type HistoricalSet = { weight: number; reps: number; partialReps: number; source: string };
+export type HistoricalSet = { weight: number; reps: number; partialReps: number; source: string; setType?: "working" | "timed"; durationSeconds?: number | null };
 export type HistoricalExercise = { name: string; sets: HistoricalSet[]; notes: string | null; sourceRows: number[] };
 export type HistoricalWorkout = { sheetName: string; workoutName: string; dateLabel: string; date: string | null; exercises: HistoricalExercise[]; warnings: string[] };
 
@@ -18,7 +18,6 @@ export function parseWorkoutDate(label: string, defaultYear = new Date().getFull
   const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (iso) return isoDate(Number(iso[1]),Number(iso[2]),Number(iso[3]));
 
-  // Common Excel display formats: 8/18/2025, 8/18/25, 8/18.
   const numeric = raw.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2}|\d{4}))?$/);
   if(numeric){let year=Number(numeric[3]??defaultYear);if(year<100)year+=year>=70?1900:2000;return isoDate(year,Number(numeric[1]),Number(numeric[2]));}
 
@@ -28,19 +27,25 @@ export function parseWorkoutDate(label: string, defaultYear = new Date().getFull
   return isoDate(year,month,day);
 }
 
-/** Parse one spreadsheet performance cell into one or more load/rep sets.
- * Supports weighted entries such as 245*2+1, chained drop/backoff work such as
- * 160*5+120*5+80*7, assisted loads, and historical bodyweight shorthand such
- * as 12 or 12+2 (stored as weight 0). Live workouts still require an explicit
- * weight value in the app.
+/** Parse one spreadsheet performance cell into one or more historical sets.
+ * Supports weighted entries such as 245*2+1, chained drop/backoff work,
+ * historical bodyweight shorthand such as 12 or 12+2, and timed entries such
+ * as :39, 0:39, 2:30, or 00:02:30. Timed entries are stored as timed sets with
+ * durationSeconds and must not be interpreted as rep volume.
  */
 export function parsePerformanceCell(value: unknown): HistoricalSet[] {
   const source = text(value);
-  if (!source || source === "-" || /^\d{1,2}:\d{2}:\d{2}$/.test(source)) return [];
+  if (!source || source === "-") return [];
   const cleaned = source.replace(/\s+/g, "").replace(/[()]/g, "");
 
+  const shortTimed = cleaned.match(/^:(\d{1,2})$/);
+  if(shortTimed){const seconds=Number(shortTimed[1]);if(seconds>0&&seconds<60)return [{weight:0,reps:0,partialReps:0,source,setType:"timed",durationSeconds:seconds}];}
+
+  const timed = cleaned.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if(timed){let seconds:number;if(timed[3]!=null)seconds=Number(timed[1])*3600+Number(timed[2])*60+Number(timed[3]);else seconds=Number(timed[1])*60+Number(timed[2]);if(seconds>0)return [{weight:0,reps:0,partialReps:0,source,setType:"timed",durationSeconds:seconds}];}
+
   const bodyweight = cleaned.match(/^(\d+)(?:\+(\d+))?$/);
-  if (bodyweight) return [{ weight: 0, reps: Number(bodyweight[1]), partialReps: Number(bodyweight[2] ?? 0), source }];
+  if (bodyweight) return [{ weight: 0, reps: Number(bodyweight[1]), partialReps: Number(bodyweight[2] ?? 0), source, setType:"working", durationSeconds:null }];
 
   const matches = [...cleaned.matchAll(/(-?\d+(?:\.\d+)?)\*(\d+)/g)];
   return matches.map((match, index) => {
@@ -48,7 +53,7 @@ export function parsePerformanceCell(value: unknown): HistoricalSet[] {
     const nextStart = index + 1 < matches.length ? (matches[index + 1].index ?? cleaned.length) : cleaned.length;
     const between = cleaned.slice(end, nextStart);
     const partial = between.match(/^\+(\d+)$/);
-    return { weight: Number(match[1]), reps: Number(match[2]), partialReps: Number(partial?.[1] ?? 0), source };
+    return { weight: Number(match[1]), reps: Number(match[2]), partialReps: Number(partial?.[1] ?? 0), source, setType:"working", durationSeconds:null };
   });
 }
 
