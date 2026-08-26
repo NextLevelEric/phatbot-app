@@ -29,10 +29,10 @@ Fix anything that prevents an athlete from training, understanding the result, o
 
 - [ ] Production Supabase and Vercel configuration reviewed.
 - [ ] Error states do not expose sensitive technical details to athletes.
-- [ ] Privacy policy published and linked.
-- [ ] Terms of use published and linked.
-- [ ] Support/contact page or support email published and linked.
-- [ ] Account deletion flow available in the app if account creation is supported.
+- [x] Privacy policy published and linked.
+- [x] Terms of use published and linked.
+- [x] Support/contact page or support email published and linked.
+- [x] Account deletion flow available in the app if account creation is supported.
 - [ ] Data collected by PHATBOT is documented for App Store privacy disclosures.
 - [ ] No test/debug accounts, fake data, or developer-only controls are visible to normal users.
 
