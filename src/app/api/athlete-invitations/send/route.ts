@@ -14,6 +14,11 @@ function activationUrl(appUrl: string, hashedToken: string, type: string) {
   return `${appUrl}/auth/accept-athlete-invite?token_hash=${encodeURIComponent(hashedToken)}&type=${encodeURIComponent(type)}`;
 }
 
+function serverFailure(context: string, error: unknown, message: string, status = 500) {
+  console.error(`PHATBOT athlete invitation ${context}`, error);
+  return NextResponse.json({ error: message }, { status });
+}
+
 export async function POST(request: Request) {
   try {
     const authHeader = request.headers.get("authorization");
@@ -26,7 +31,7 @@ export async function POST(request: Request) {
     const resendKey = process.env.RESEND_API_KEY;
     const emailDomain = process.env.RESEND_EMAIL_DOMAIN;
     if (!supabaseUrl || !publishableKey || !serviceRoleKey || !resendKey || !emailDomain) {
-      return NextResponse.json({ error: "Athlete invitation service is not fully configured." }, { status: 500 });
+      return NextResponse.json({ error: "Athlete invitation service is temporarily unavailable." }, { status: 503 });
     }
 
     const userClient = createClient(supabaseUrl, publishableKey, { global: { headers: { Authorization: `Bearer ${token}` } } });
@@ -49,7 +54,7 @@ export async function POST(request: Request) {
     let status: "invited" | "resent" | "linked" = "invited";
 
     const { data: listed, error: listError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (listError) return NextResponse.json({ error: listError.message }, { status: 500 });
+    if (listError) return serverFailure("user lookup failed", listError, "PHATBOT could not prepare this invitation. Try again.");
     const existing = listed.users.find((candidate) => candidate.email?.toLowerCase() === athleteEmail);
 
     if (existing) {
@@ -63,7 +68,7 @@ export async function POST(request: Request) {
           email: athleteEmail,
           options: { redirectTo: `${appUrl}/auth/accept-athlete-invite` },
         });
-        if (generateError) return NextResponse.json({ error: generateError.message }, { status: 500 });
+        if (generateError) return serverFailure("magic link generation failed", generateError, "PHATBOT could not prepare this invitation. Try again.");
         status = "resent";
         joinUrl = activationUrl(appUrl, generated.properties.hashed_token, generated.properties.verification_type);
       }
@@ -73,7 +78,7 @@ export async function POST(request: Request) {
         email: athleteEmail,
         options: { redirectTo: `${appUrl}/auth/accept-athlete-invite`, data: athleteName ? { display_name: athleteName } : undefined },
       });
-      if (generateError || !generated.user) return NextResponse.json({ error: generateError?.message ?? "Unable to create athlete account." }, { status: 500 });
+      if (generateError || !generated.user) return serverFailure("account invitation generation failed", generateError, "PHATBOT could not prepare this invitation. Try again.");
       athleteUserId = generated.user.id;
       joinUrl = activationUrl(appUrl, generated.properties.hashed_token, generated.properties.verification_type);
     }
@@ -81,7 +86,7 @@ export async function POST(request: Request) {
     await admin.from("profiles").upsert({ id: athleteUserId, display_name: athleteName || null, role: "athlete" }, { onConflict: "id" });
     await admin.from("athlete_profiles").upsert({ user_id: athleteUserId }, { onConflict: "user_id" });
     const { error: linkError } = await admin.from("coach_athletes").upsert({ coach_user_id: user.id, athlete_user_id: athleteUserId, active: true }, { onConflict: "coach_user_id,athlete_user_id" });
-    if (linkError) return NextResponse.json({ error: linkError.message }, { status: 500 });
+    if (linkError) return serverFailure("coach-athlete link failed", linkError, "PHATBOT could not connect this athlete. Try again.");
 
     const { data: coachProfile } = await admin.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
     const coachName = coachProfile?.display_name?.trim() || "Your coach";
@@ -92,11 +97,11 @@ export async function POST(request: Request) {
       subject: status === "resent" ? `${coachName} resent your PHATBOT invitation` : `${coachName} invited you to PHATBOT`,
       html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#18181b"><p style="font-size:12px;letter-spacing:4px;font-weight:700">PHATBOT</p><h1 style="font-size:28px;margin:24px 0 12px">Your PHATBOT training space is ready.</h1><p style="font-size:16px;line-height:1.6;color:#52525b">${escapeHtml(coachName)} has connected you to PHATBOT. Your training plan can already be waiting for you.</p><a href="${joinUrl}" style="display:inline-block;margin-top:20px;padding:14px 22px;background:#18181b;color:#fff;text-decoration:none;border-radius:8px;font-weight:700">${status === "linked" ? "Open PHATBOT" : "Activate PHATBOT Account"}</a><p style="margin-top:28px;font-size:13px;color:#71717a">Use ${escapeHtml(athleteEmail)} for your PHATBOT account.</p></div>`,
     });
-    if (emailError) return NextResponse.json({ error: `Athlete workspace was created, but the invitation email could not be sent: ${emailError.message}`, athleteUserId }, { status: 502 });
+    if (emailError) return serverFailure("email delivery failed", emailError, "The athlete workspace was created, but the invitation email could not be sent. Try sending it again.", 502);
 
     return NextResponse.json({ ok: true, athleteUserId, status });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to invite athlete." }, { status: 500 });
+    return serverFailure("unexpected failure", error, "PHATBOT could not invite this athlete. Try again.");
   }
 }
 
