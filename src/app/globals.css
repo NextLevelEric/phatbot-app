@@ -122,6 +122,46 @@ main.max-w-2xl > div.grid:last-child > a:last-child:hover { background: var(--ph
   /* Mode switcher stays usable on narrow phones. */
   .sticky.top-0 > div { min-width: 0; }
   .sticky.top-0 p { white-space: nowrap; }
+
+  /* Live workout: make high-frequency controls easy to hit with sweaty thumbs. */
+  main.max-w-2xl > section:has(select) select,
+  main.max-w-2xl > section:has(select) input,
+  main.max-w-2xl > section:has(select) textarea {
+    min-height: 48px;
+  }
+  main.max-w-2xl > section:has(select) button {
+    min-height: 48px;
+  }
+  main.max-w-2xl > section:has(select) button[class*="text-xs"] {
+    min-width: 4.5rem;
+    padding-left: .75rem;
+    padding-right: .75rem;
+  }
+  main.max-w-2xl > section:has(select) button:disabled,
+  main.max-w-2xl > button:disabled {
+    opacity: .52;
+  }
+  main.max-w-2xl > section:has(select) .grid.grid-cols-2 {
+    gap: .625rem;
+  }
+  main.max-w-2xl > section:has(select) .grid.grid-cols-2 > input,
+  main.max-w-2xl > section:has(select) .grid.grid-cols-2 > select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Keep destructive workout cancellation visually separated from completion. */
+  main.max-w-2xl > button.rounded-lg.border-zinc-700 {
+    margin-top: .75rem;
+    border-color: #52525b;
+    background: transparent;
+    color: #a1a1aa;
+  }
+  main.max-w-2xl > button:last-child {
+    min-height: 52px;
+    margin-top: .25rem;
+    font-size: 1rem;
+  }
 }
 
 @media (max-width: 380px) {
