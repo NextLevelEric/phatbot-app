@@ -10,17 +10,17 @@ Fix anything that prevents an athlete from training, understanding the result, o
 - [x] Athlete signup, login, logout, password reset, and session recovery work on mobile.
 - [x] Coach signup and athlete/coach connection flow work.
 - [x] Workout templates load, edit, reorder, and start correctly.
-- [ ] Live workout can log working, top, backoff, partial, tempo, drop, and timed sets.
-- [ ] Extra working set with 3+ full reps scores as a PO win on an established exercise.
-- [ ] Tempo and drop sets add workload volume but do not create PO losses or PRs.
-- [ ] Timed sets compare duration-to-duration and do not contaminate weight x rep volume.
-- [ ] Last Performance always uses the most recent actual performance of the exercise and shows the date.
-- [ ] A skipped recent workout does not erase older exercise history.
-- [ ] PR and Best-at-Weight detection use all applicable historical data.
+- [x] Live workout can log working, top, backoff, partial, tempo, drop, and timed sets.
+- [x] Extra working set with 3+ full reps scores as a PO win on an established exercise.
+- [x] Tempo and drop sets add workload volume but do not create PO losses or PRs.
+- [x] Timed sets compare duration-to-duration and do not contaminate weight x rep volume.
+- [x] Last Performance always uses the most recent actual performance of the exercise and shows the date.
+- [x] A skipped recent workout does not erase older exercise history.
+- [x] PR and Best-at-Weight detection use all applicable historical data.
 - [ ] Skipped exercises are NOT SCORED and do not become regressions or fake baselines.
-- [ ] Workout report agrees with the live workout result.
-- [ ] Training Volume vs Last Workout is labeled and explained as workload volume, not strength.
-- [ ] Progress Center, Workout Trends, Exercise Telemetry, PR history, and timed history update after completion.
+- [x] Workout report agrees with the live workout result.
+- [x] Training Volume vs Last Workout is labeled and explained as workload volume, not strength.
+- [x] Progress Center, Workout Trends, Exercise Telemetry, PR history, and timed history update after completion.
 - [ ] Coach feedback/transmissions display and read state works.
 - [ ] Refresh/reconnect during a live workout does not lose recently saved work.
 - [ ] Mobile UI has no blocking layout, tap-target, keyboard, or scrolling issues on current iPhone Safari.
