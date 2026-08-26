@@ -7,7 +7,7 @@ Fix anything that prevents an athlete from training, understanding the result, o
 ## Phase 1 - Release QA
 
 - [x] Production build is green on Vercel.
-- [ ] Athlete signup, login, logout, password reset, and session recovery work on mobile.
+- [x] Athlete signup, login, logout, password reset, and session recovery work on mobile.
 - [ ] Coach signup and athlete/coach connection flow work.
 - [ ] Workout templates load, edit, reorder, and start correctly.
 - [ ] Live workout can log working, top, backoff, partial, tempo, drop, and timed sets.
