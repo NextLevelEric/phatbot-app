@@ -2,7 +2,18 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
-const PUBLIC_APP_URL = "https://phatbot-app.vercel.app";
+function getAppUrl() {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (productionHost) return `https://${productionHost}`;
+  return "https://phatbot-app.vercel.app";
+}
+
+function serverFailure(context: string, error: unknown, message: string, status = 500) {
+  console.error(`PHATBOT coach invitation ${context}`, error);
+  return NextResponse.json({ error: message }, { status });
+}
 
 export async function POST(request: Request) {
   try {
@@ -14,7 +25,9 @@ export async function POST(request: Request) {
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     const resendKey = process.env.RESEND_API_KEY;
     const emailDomain = process.env.RESEND_EMAIL_DOMAIN;
-    if (!supabaseUrl || !supabaseKey || !resendKey || !emailDomain) return NextResponse.json({ error: "Email service is not configured." }, { status: 500 });
+    if (!supabaseUrl || !supabaseKey || !resendKey || !emailDomain) {
+      return NextResponse.json({ error: "Invitation service is temporarily unavailable." }, { status: 503 });
+    }
 
     const supabase = createClient(supabaseUrl, supabaseKey, { global: { headers: { Authorization: `Bearer ${token}` } } });
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
@@ -22,16 +35,19 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const coachEmail = String(body.coachEmail ?? "").trim().toLowerCase();
-    if (!coachEmail || !coachEmail.includes("@") || coachEmail === user.email?.toLowerCase()) return NextResponse.json({ error: "Enter a valid coach email address." }, { status: 400 });
+    if (!coachEmail || !coachEmail.includes("@") || coachEmail === user.email?.toLowerCase()) {
+      return NextResponse.json({ error: "Enter a valid coach email address." }, { status: 400 });
+    }
 
     const { data: profile } = await supabase.from("profiles").select("display_name").eq("id", user.id).single();
     const athleteName = profile?.display_name?.trim() || "A PHATBOT athlete";
     const { error: inviteError } = await supabase.from("coach_invitations").insert({ athlete_user_id: user.id, coach_email: coachEmail });
-    if (inviteError) return NextResponse.json({ error: inviteError.code === "23505" ? "You already have a pending invitation for that coach." : inviteError.message }, { status: 400 });
+    if (inviteError) {
+      if (inviteError.code === "23505") return NextResponse.json({ error: "You already have a pending invitation for that coach." }, { status: 400 });
+      return serverFailure("database insert failed", inviteError, "PHATBOT could not create this coach invitation. Try again.");
+    }
 
-    // Always send invitation links to the public PHATBOT production URL. Using
-    // request.url here can accidentally create a protected Vercel deployment URL.
-    const joinUrl = `${PUBLIC_APP_URL}/auth/coach?email=${encodeURIComponent(coachEmail)}`;
+    const joinUrl = `${getAppUrl()}/auth/coach?email=${encodeURIComponent(coachEmail)}`;
     const resend = new Resend(resendKey);
     const from = `PHATBOT <invites@${emailDomain}>`;
     const { error: emailError } = await resend.emails.send({
@@ -42,10 +58,14 @@ export async function POST(request: Request) {
     });
     if (emailError) {
       await supabase.from("coach_invitations").update({ status: "cancelled" }).eq("athlete_user_id", user.id).eq("coach_email", coachEmail).eq("status", "pending");
-      return NextResponse.json({ error: `Invitation email could not be sent: ${emailError.message}` }, { status: 502 });
+      return serverFailure("email delivery failed", emailError, "The invitation was created, but the email could not be sent. Try again.", 502);
     }
     return NextResponse.json({ ok: true, coachEmail });
-  } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to send invitation." }, { status: 500 }); }
+  } catch (error) {
+    return serverFailure("unexpected failure", error, "PHATBOT could not send this invitation. Try again.");
+  }
 }
 
-function escapeHtml(value: string) { return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char] ?? char)); }
+function escapeHtml(value: string) {
+  return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char] ?? char));
+}
