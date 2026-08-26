@@ -22,8 +22,8 @@ Fix anything that prevents an athlete from training, understanding the result, o
 - [x] Training Volume vs Last Workout is labeled and explained as workload volume, not strength.
 - [x] Progress Center, Workout Trends, Exercise Telemetry, PR history, and timed history update after completion.
 - [x] Coach feedback/transmissions display and read state works.
-- [ ] Refresh/reconnect during a live workout does not lose recently saved work.
-- [ ] Mobile UI has no blocking layout, tap-target, keyboard, or scrolling issues on current iPhone Safari.
+- [x] Refresh/reconnect during a live workout does not lose recently saved work.
+- [x] Mobile UI has no blocking layout, tap-target, keyboard, or scrolling issues on current iPhone Safari.
 
 ## Phase 2 - Production essentials
 
