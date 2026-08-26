@@ -10,6 +10,11 @@ function getAppUrl() {
   return "https://phatbot-app.vercel.app";
 }
 
+function serverFailure(context: string, error: unknown, message: string, status = 500) {
+  console.error(`PHATBOT invitation management ${context}`, error);
+  return NextResponse.json({ error: message }, { status });
+}
+
 async function context(request: Request) {
   const authHeader = request.headers.get("authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -32,7 +37,7 @@ export async function GET(request: Request) {
   const { user, admin } = ctx;
 
   const { data: links, error } = await admin.from("coach_athletes").select("athlete_user_id").eq("coach_user_id", user.id).eq("active", true);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverFailure("link lookup failed", error, "PHATBOT could not load pending athlete invitations.");
 
   const invites: { kind:"workspace"; athleteUserId:string; email:string; name:string; createdAt:string|null }[] = [];
   for (const link of links ?? []) {
@@ -48,7 +53,7 @@ export async function GET(request: Request) {
     .eq("coach_user_id", user.id)
     .eq("status", "pending")
     .order("created_at", { ascending:false });
-  if (legacyError) return NextResponse.json({ error: legacyError.message }, { status:500 });
+  if (legacyError) return serverFailure("legacy invite lookup failed", legacyError, "PHATBOT could not load pending athlete invitations.");
 
   const legacyInvites = (legacy ?? []).map(row => ({
     kind:"legacy" as const,
@@ -75,7 +80,7 @@ export async function POST(request: Request) {
       const { data: invite } = await admin.from("athlete_invitations").select("id").eq("id",invitationId).eq("coach_user_id",user.id).eq("status","pending").maybeSingle();
       if (!invite) return NextResponse.json({ error:"Pending invitation not found." }, { status:404 });
       const { error: deleteError } = await admin.from("athlete_invitations").delete().eq("id",invitationId).eq("coach_user_id",user.id);
-      if (deleteError) return NextResponse.json({ error:deleteError.message }, { status:500 });
+      if (deleteError) return serverFailure("legacy invite cancellation failed", deleteError, "PHATBOT could not cancel this invitation.");
       return NextResponse.json({ ok:true });
     }
 
@@ -91,10 +96,10 @@ export async function POST(request: Request) {
     if (action === "resend") {
       const resendKey = process.env.RESEND_API_KEY;
       const emailDomain = process.env.RESEND_EMAIL_DOMAIN;
-      if (!resendKey || !emailDomain) return NextResponse.json({ error: "Email service is not configured." }, { status: 500 });
+      if (!resendKey || !emailDomain) return NextResponse.json({ error: "Email service is temporarily unavailable." }, { status: 503 });
       const appUrl = getAppUrl();
       const { data: generated, error: generateError } = await admin.auth.admin.generateLink({ type: "magiclink", email: athlete.email, options: { redirectTo: `${appUrl}/auth/accept-athlete-invite` } });
-      if (generateError) return NextResponse.json({ error: generateError.message }, { status: 500 });
+      if (generateError) return serverFailure("activation link generation failed", generateError, "PHATBOT could not prepare a new activation link.");
       const joinUrl = `${appUrl}/auth/accept-athlete-invite?token_hash=${encodeURIComponent(generated.properties.hashed_token)}&type=${encodeURIComponent(generated.properties.verification_type)}`;
       const { data: coachProfile } = await admin.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
       const coachName = coachProfile?.display_name?.trim() || "Your coach";
@@ -103,9 +108,9 @@ export async function POST(request: Request) {
         from: `PHATBOT <invites@${emailDomain}>`,
         to: athlete.email,
         subject: `${coachName} resent your PHATBOT invitation`,
-        html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#18181b"><p style="font-size:12px;letter-spacing:4px;font-weight:700">PHATBOT</p><h1 style="font-size:28px;margin:24px 0 12px">Your PHATBOT training space is ready.</h1><p style="font-size:16px;line-height:1.6;color:#52525b">${coachName} resent your PHATBOT activation link.</p><a href="${joinUrl}" style="display:inline-block;margin-top:20px;padding:14px 22px;background:#18181b;color:#fff;text-decoration:none;border-radius:8px;font-weight:700">Activate PHATBOT Account</a></div>`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#18181b"><p style="font-size:12px;letter-spacing:4px;font-weight:700">PHATBOT</p><h1 style="font-size:28px;margin:24px 0 12px">Your PHATBOT training space is ready.</h1><p style="font-size:16px;line-height:1.6;color:#52525b">${escapeHtml(coachName)} resent your PHATBOT activation link.</p><a href="${joinUrl}" style="display:inline-block;margin-top:20px;padding:14px 22px;background:#18181b;color:#fff;text-decoration:none;border-radius:8px;font-weight:700">Activate PHATBOT Account</a></div>`,
       });
-      if (emailError) return NextResponse.json({ error: emailError.message }, { status: 502 });
+      if (emailError) return serverFailure("email delivery failed", emailError, "PHATBOT could not resend the invitation email.", 502);
       return NextResponse.json({ ok: true });
     }
 
@@ -116,12 +121,16 @@ export async function POST(request: Request) {
       await admin.from("coach_athletes").delete().eq("athlete_user_id", athleteUserId);
       await admin.from("athlete_invitations").delete().eq("athlete_email", athlete.email.toLowerCase());
       const { error: deleteError } = await admin.auth.admin.deleteUser(athleteUserId);
-      if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
+      if (deleteError) return serverFailure("pending account deletion failed", deleteError, "PHATBOT could not cancel this pending athlete account.");
       return NextResponse.json({ ok: true });
     }
 
     return NextResponse.json({ error: "Unknown action." }, { status: 400 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to manage invitation." }, { status: 500 });
+    return serverFailure("unexpected failure", error, "PHATBOT could not manage this invitation. Try again.");
   }
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char] ?? char));
 }
