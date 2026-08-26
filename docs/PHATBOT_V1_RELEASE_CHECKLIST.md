@@ -33,7 +33,7 @@ Fix anything that prevents an athlete from training, understanding the result, o
 - [x] Terms of use published and linked.
 - [x] Support/contact page or support email published and linked.
 - [x] Account deletion flow available in the app if account creation is supported.
-- [ ] Data collected by PHATBOT is documented for App Store privacy disclosures.
+- [x] Data collected by PHATBOT is documented for App Store privacy disclosures.
 - [ ] No test/debug accounts, fake data, or developer-only controls are visible to normal users.
 
 ## Phase 3 - iOS / TestFlight
