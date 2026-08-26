@@ -39,14 +39,21 @@ export default function CoachAuthPage() {
       const authRequest = mode === "signup"
         ? supabase.auth.signUp({ email: cleanEmail, password, options: { emailRedirectTo: `${PUBLIC_APP_URL}/auth/coach?confirmed=1&email=${encodeURIComponent(cleanEmail)}`, data: { signup_type: "coach", display_name: name.trim(), business_name: businessName.trim() } } })
         : supabase.auth.signInWithPassword({ email: cleanEmail, password });
-      const timeout = new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error("Authentication request timed out. Please try again.")), AUTH_TIMEOUT_MS));
+      const timeout = new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error("Authentication request timed out.")), AUTH_TIMEOUT_MS));
       const result = await Promise.race([authRequest, timeout]);
-      if (result.error) { setMessage(result.error.message); return; }
+      if (result.error) {
+        console.error("PHATBOT coach authentication failed", result.error);
+        setMessage(mode === "signin" ? "PHATBOT could not sign you in. Check your email and password and try again." : "PHATBOT could not create that coach account right now. Check your information and try again.");
+        return;
+      }
       if (mode === "signup" && !result.data.session) { setMessage("Coach account created. Check your email to confirm it. The confirmation link will return you to PHATBOT, where you can sign in and accept your athlete invitation."); return; }
-      if (!result.data.user) { setMessage("Unable to finish coach setup."); return; }
+      if (!result.data.user) { setMessage("PHATBOT could not finish coach setup. Please try again."); return; }
       await finishCoachSetup(result.data.user.id);
       window.location.href = invited ? "/coach/invitations" : "/coach";
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to create coach account."); }
+    } catch (error) {
+      console.error("PHATBOT coach account request failed", error);
+      setMessage(mode === "signin" ? "PHATBOT could not sign you in right now. Please try again." : "PHATBOT could not finish creating your coach account. Please try again.");
+    }
     finally { setLoading(false); }
   }
 
