@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { parseHistoricalSheet, parsePerformanceCell, parseWorkoutDate } from "./historicalWorkout";
 
 describe("historical workout performance parser",()=>{
-  it("parses weight, reps, and partials",()=>{expect(parsePerformanceCell("245*2+1")).toEqual([{weight:245,reps:2,partialReps:1,source:"245*2+1"}]);});
+  it("parses weight, reps, and partials",()=>{expect(parsePerformanceCell("245*2+1")).toEqual([{weight:245,reps:2,partialReps:1,source:"245*2+1",setType:"working",durationSeconds:null}]);});
   it("splits chained drop/backoff work into separate performances",()=>{expect(parsePerformanceCell("160*5+120*5+80*7").map(s=>[s.weight,s.reps,s.partialReps])).toEqual([[160,5,0],[120,5,0],[80,7,0]]);});
   it("handles assisted loads in parentheses",()=>{expect(parsePerformanceCell("0*2+(-100*8)+(-140*8").map(s=>[s.weight,s.reps])).toEqual([[0,2],[-100,8],[-140,8]]);});
-  it("treats rep-only historical entries as bodyweight",()=>{expect(parsePerformanceCell("12")).toEqual([{weight:0,reps:12,partialReps:0,source:"12"}]);expect(parsePerformanceCell("10+2")).toEqual([{weight:0,reps:10,partialReps:2,source:"10+2"}]);});
+  it("treats rep-only historical entries as bodyweight",()=>{expect(parsePerformanceCell("12")).toEqual([{weight:0,reps:12,partialReps:0,source:"12",setType:"working",durationSeconds:null}]);expect(parsePerformanceCell("10+2")).toEqual([{weight:0,reps:10,partialReps:2,source:"10+2",setType:"working",durationSeconds:null}]);});
+  it("parses timed historical entries",()=>{expect(parsePerformanceCell(":39")[0]).toMatchObject({setType:"timed",durationSeconds:39});expect(parsePerformanceCell("0:39")[0]).toMatchObject({setType:"timed",durationSeconds:39});expect(parsePerformanceCell("2:30")[0]).toMatchObject({setType:"timed",durationSeconds:150});expect(parsePerformanceCell("00:02:30")[0]).toMatchObject({setType:"timed",durationSeconds:150});});
   it("ignores skipped and incomplete cells",()=>{expect(parsePerformanceCell("-")).toEqual([]);expect(parsePerformanceCell("275*")).toEqual([]);});
 });
 
