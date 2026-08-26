@@ -51,7 +51,7 @@ describe("PHATBOT scoring and history reliability audit", () => {
 
   it("detects bodyweight rep PRs at the zero-load bucket", () => {
     const records = detectPersonalRecords([prSet(0, 12)], [prSet(0, 10), prSet(0, 8)]);
-    expect(records.some((pr) => pr.type === "matched_load_reps" && pr.weight === 0 && pr.reps === 12)).toBe(true);
+    expect(records.some((pr) => pr.type === "best_at_weight" && pr.weight === 0 && pr.reps === 12)).toBe(true);
   });
 
   it("does not let warmups create PRs", () => {
