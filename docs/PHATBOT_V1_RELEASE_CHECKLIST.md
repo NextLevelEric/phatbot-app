@@ -27,7 +27,7 @@ Fix anything that prevents an athlete from training, understanding the result, o
 
 ## Phase 2 - Production essentials
 
-- [ ] Production Supabase and Vercel configuration reviewed.
+- [x] Production Supabase and Vercel configuration reviewed.
 - [x] Error states do not expose sensitive technical details to athletes.
 - [x] Privacy policy published and linked.
 - [x] Terms of use published and linked.
