@@ -46,6 +46,7 @@ export default function ScorePersistenceAgent(){
 
    try{
     await backfillHistoricalIntelligence(supabase,athleteUserId);
+    if(!cancelled&&pathname==="/progress")window.location.reload();
    }catch(error){
     // Do not interrupt the workout/report experience; the next eligible page load can retry.
     console.error("PHATBOT could not backfill derived training intelligence",error);
