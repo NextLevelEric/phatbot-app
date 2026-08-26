@@ -4,6 +4,7 @@ import RoleModeSwitcher from "@/components/RoleModeSwitcher";
 import AthleteHomeLink from "@/components/AthleteHomeLink";
 import LiveWorkoutAccordion from "@/components/LiveWorkoutAccordion";
 import LiveWorkoutConnectionStatus from "@/components/LiveWorkoutConnectionStatus";
+import AppFooter from "@/components/AppFooter";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <LiveWorkoutAccordion />
         <LiveWorkoutConnectionStatus />
         {children}
+        <AppFooter />
       </body>
     </html>
   );
