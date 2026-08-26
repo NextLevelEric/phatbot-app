@@ -59,7 +59,7 @@ describe("personal record detection",()=>{
 
   it("detects a matched-load rep PR separately",()=>{
     const prs=detectPersonalRecords([s(185,10)],[s(185,8),s(195,4)]);
-    expect(prs.some(pr=>pr.type==="matched_load_reps"&&pr.previousReps===8&&pr.reps===10)).toBe(true);
+    expect(prs.some(pr=>pr.type==="best_at_weight"&&pr.previousReps===8&&pr.reps===10)).toBe(true);
   });
 
   it("ignores warmups for PR detection",()=>{
