@@ -9,7 +9,7 @@ Fix anything that prevents an athlete from training, understanding the result, o
 - [x] Production build is green on Vercel.
 - [x] Athlete signup, login, logout, password reset, and session recovery work on mobile.
 - [x] Coach signup and athlete/coach connection flow work.
-- [ ] Workout templates load, edit, reorder, and start correctly.
+- [x] Workout templates load, edit, reorder, and start correctly.
 - [ ] Live workout can log working, top, backoff, partial, tempo, drop, and timed sets.
 - [ ] Extra working set with 3+ full reps scores as a PO win on an established exercise.
 - [ ] Tempo and drop sets add workload volume but do not create PO losses or PRs.
