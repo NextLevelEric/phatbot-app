@@ -1,0 +1,55 @@
+name: Generate iOS Project
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-ios:
+    runs-on: macos-15
+
+    steps:
+      - name: Check out iOS shell branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/ios-shell
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate native iOS project if missing
+        shell: bash
+        run: |
+          if [ ! -d ios ]; then
+            npm run ios:add
+          fi
+          npm run ios:sync
+
+      - name: Verify generated Xcode project
+        shell: bash
+        run: |
+          test -d ios/App/App.xcodeproj
+          grep -R "com.nextleveldigitalmedia.phatbot" ios/App/App.xcodeproj/project.pbxproj
+
+      - name: Commit generated iOS project
+        shell: bash
+        run: |
+          if git diff --quiet -- ios && git diff --cached --quiet -- ios; then
+            echo "No iOS project changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- ios
+          git commit -m "Generate native iOS Xcode project"
+          git push origin HEAD:feature/ios-shell
