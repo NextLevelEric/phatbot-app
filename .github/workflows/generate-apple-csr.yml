@@ -1,0 +1,55 @@
+name: Generate Apple Distribution CSR
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-csr:
+    runs-on: macos-15
+
+    steps:
+      - name: Validate encryption password secret
+        shell: bash
+        env:
+          CSR_KEY_PASSWORD: ${{ secrets.IOS_SIGNING_KEY_PASSWORD }}
+        run: |
+          test -n "$CSR_KEY_PASSWORD" || { echo "Missing IOS_SIGNING_KEY_PASSWORD secret"; exit 1; }
+
+      - name: Generate private key and CSR
+        shell: bash
+        env:
+          CSR_KEY_PASSWORD: ${{ secrets.IOS_SIGNING_KEY_PASSWORD }}
+        run: |
+          mkdir -p apple-signing
+          openssl genrsa -out apple-signing/apple_distribution_private_key.pem 2048
+          openssl req \
+            -new \
+            -key apple-signing/apple_distribution_private_key.pem \
+            -out apple-signing/PHATBOT.certSigningRequest \
+            -subj "/emailAddress=eric@nxtlm.com/CN=PHATBOT Apple Distribution/O=Next Level Digital Media & Marketing, LLC/C=US"
+
+          openssl enc \
+            -aes-256-cbc \
+            -pbkdf2 \
+            -salt \
+            -in apple-signing/apple_distribution_private_key.pem \
+            -out apple-signing/apple_distribution_private_key.pem.enc \
+            -pass env:CSR_KEY_PASSWORD
+
+          rm apple-signing/apple_distribution_private_key.pem
+
+          openssl req -in apple-signing/PHATBOT.certSigningRequest -noout -verify
+          test -s apple-signing/apple_distribution_private_key.pem.enc
+
+      - name: Upload CSR and encrypted private key
+        uses: actions/upload-artifact@v4
+        with:
+          name: PHATBOT-Apple-Distribution-CSR
+          path: |
+            apple-signing/PHATBOT.certSigningRequest
+            apple-signing/apple_distribution_private_key.pem.enc
+          if-no-files-found: error
+          retention-days: 1
