@@ -42,13 +42,24 @@ jobs:
       - name: Commit generated iOS project
         shell: bash
         run: |
-          if git diff --quiet -- ios && git diff --cached --quiet -- ios; then
-            echo "No iOS project changes to commit."
-            exit 0
-          fi
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- ios
+
+          git add --all -- ios
+
+          if git diff --cached --quiet -- ios; then
+            echo "No iOS project changes to commit."
+            exit 1
+          fi
+
           git commit -m "Generate native iOS Xcode project"
           git push origin HEAD:feature/ios-shell
+
+      - name: Verify branch received iOS project commit
+        shell: bash
+        run: |
+          git fetch origin feature/ios-shell
+          LOCAL_SHA=$(git rev-parse HEAD)
+          REMOTE_SHA=$(git rev-parse origin/feature/ios-shell)
+          test "$LOCAL_SHA" = "$REMOTE_SHA"
+          git ls-tree -r --name-only origin/feature/ios-shell | grep '^ios/App/App.xcodeproj/project.pbxproj$'
