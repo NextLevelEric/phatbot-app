@@ -1,0 +1,60 @@
+name: Build PHATBOT Android APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out PHATBOT mobile shell
+        uses: actions/checkout@v4
+        with:
+          ref: feature/ios-shell
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Capacitor Android
+        run: npm install --no-save @capacitor/android@8.5.0
+
+      - name: Generate Android project
+        run: |
+          rm -rf android
+          npx cap add android
+          npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Prepare PHATBOT APK
+        run: |
+          mkdir -p build/android
+          cp android/app/build/outputs/apk/debug/app-debug.apk build/android/PHATBOT-debug.apk
+          ls -lh build/android/PHATBOT-debug.apk
+
+      - name: Upload PHATBOT APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PHATBOT-Android-APK
+          path: build/android/PHATBOT-debug.apk
+          if-no-files-found: error
+          retention-days: 7
