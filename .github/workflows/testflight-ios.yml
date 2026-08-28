@@ -41,8 +41,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Sync Capacitor iOS project
-        run: npm run ios:sync
+      - name: Refresh Capacitor iOS config
+        shell: bash
+        run: |
+          npx cap copy ios
+          test -f ios/App/CapApp-SPM/Package.swift || { echo "Missing Capacitor Swift Package Manager package"; exit 1; }
 
       - name: Validate signing and App Store Connect secrets
         shell: bash
