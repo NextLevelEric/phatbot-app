@@ -8,6 +8,35 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 const AUTH_TIMEOUT_MS = 12000;
 const MODE_KEY = "phatbot:preferred-mode";
 
+function friendlyAuthMessage(mode: "signin" | "signup", error: { message?: string; code?: string } | null | undefined) {
+  const message = (error?.message ?? "").toLowerCase();
+  const code = (error?.code ?? "").toLowerCase();
+
+  if (mode === "signin") {
+    if (message.includes("email not confirmed") || code.includes("email_not_confirmed")) {
+      return "Your email is not confirmed yet. Open your PHATBOT confirmation email, confirm the account, then try signing in again.";
+    }
+    if (message.includes("invalid login credentials") || message.includes("invalid credentials") || code.includes("invalid_credentials")) {
+      return "PHATBOT could not verify that email and password. Double-check the email, try your password again, or use Forgot password if needed.";
+    }
+    if (message.includes("rate limit") || code.includes("rate_limit")) {
+      return "Too many sign-in attempts were made in a short period. Wait a few minutes, then try again.";
+    }
+    return "PHATBOT could not sign you in. Please try again. If this keeps happening, use Forgot password or contact support.";
+  }
+
+  if (message.includes("already registered") || message.includes("user already registered") || code.includes("user_already_exists")) {
+    return "That email already has a PHATBOT account. Use Sign in instead, or use Forgot password if you do not remember the password.";
+  }
+  if (message.includes("password") && message.includes("weak")) {
+    return "That password does not meet the account requirements. Choose a stronger password and try again.";
+  }
+  if (message.includes("rate limit") || code.includes("rate_limit")) {
+    return "Too many signup attempts were made in a short period. Wait a few minutes, then try again.";
+  }
+  return "PHATBOT could not create that account right now. Check your information and try again.";
+}
+
 export default function AuthPage() {
   return <Suspense fallback={<main className="mx-auto min-h-screen max-w-md px-6 py-12 text-zinc-300">Beep boop... loading PHATBOT.</main>}><AuthContent /></Suspense>;
 }
@@ -30,31 +59,40 @@ function AuthContent() {
     event.preventDefault(); setLoading(true); setMessage(""); setAwaitingConfirmation(false);
     try {
       const supabase = createSupabaseBrowserClient();
+      const normalizedEmail = email.trim().toLowerCase();
       const authRequest = mode === "signup"
-        ? supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/auth` } })
-        : supabase.auth.signInWithPassword({ email, password });
+        ? supabase.auth.signUp({ email: normalizedEmail, password, options: { emailRedirectTo: `${window.location.origin}/auth` } })
+        : supabase.auth.signInWithPassword({ email: normalizedEmail, password });
       const timeout = new Promise<never>((_, reject) => { window.setTimeout(() => reject(new Error("Authentication request timed out.")), AUTH_TIMEOUT_MS); });
       const result = await Promise.race([authRequest, timeout]);
       if (result.error) {
-        console.error("PHATBOT athlete authentication failed", result.error);
-        setMessage(mode === "signin" ? "PHATBOT could not sign you in. Check your email and password and try again." : "PHATBOT could not create that account right now. Check your information and try again.");
+        console.error("PHATBOT athlete authentication failed", { code: result.error.code, status: result.error.status, message: result.error.message });
+        setMessage(friendlyAuthMessage(mode, result.error));
         return;
       }
       if (mode === "signup" && !result.data.session) {
         setAwaitingConfirmation(true);
-        setMessage("Account created. Check your email to confirm your account. If it does not arrive within a minute, use Resend Confirmation Email below.");
+        setMessage("Account created. Check your email to confirm your PHATBOT account. If it does not arrive within a minute, use Resend Confirmation Email below.");
         return;
       }
-      const userId = result.data.user?.id;
-      if (userId) await supabase.rpc("claim_my_athlete_invitations");
-      if (mode === "signin" && userId) {
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session?.user?.id) {
+        console.error("PHATBOT authentication succeeded but no active session was available", { sessionError });
+        setMessage("PHATBOT accepted your sign-in, but could not establish a lasting session. Please try signing in again. If this repeats, contact support.");
+        return;
+      }
+
+      const userId = sessionData.session.user.id;
+      await supabase.rpc("claim_my_athlete_invitations");
+      if (mode === "signin") {
         const [{ data: coach }, { data: athlete }] = await Promise.all([supabase.from("coach_profiles").select("user_id").eq("user_id", userId).maybeSingle(),supabase.from("athlete_profiles").select("user_id").eq("user_id", userId).maybeSingle()]);
         if (coach) { let preferred: "athlete" | "coach" | null = null; try { const saved = localStorage.getItem(MODE_KEY); if (saved === "athlete" || saved === "coach") preferred = saved; } catch {} if (coach && athlete && preferred === "athlete") { window.location.href = "/"; return; } window.location.href = "/coach"; return; }
       }
       window.location.href = "/";
     } catch (error) {
       console.error("PHATBOT athlete authentication request failed", error);
-      setMessage("PHATBOT could not contact the authentication service. Please try again.");
+      setMessage(error instanceof Error && error.message.includes("timed out") ? "PHATBOT authentication timed out. Check your connection and try again." : "PHATBOT could not contact the authentication service. Check your connection and try again.");
     }
     finally { setLoading(false); }
   }
@@ -64,9 +102,9 @@ function AuthContent() {
     setResending(true); setMessage("");
     try {
       const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.auth.resend({ type: "signup", email: email.trim(), options: { emailRedirectTo: `${window.location.origin}/auth` } });
+      const { error } = await supabase.auth.resend({ type: "signup", email: email.trim().toLowerCase(), options: { emailRedirectTo: `${window.location.origin}/auth` } });
       if (error) {
-        console.error("PHATBOT confirmation resend failed", error);
+        console.error("PHATBOT confirmation resend failed", { code: error.code, status: error.status, message: error.message });
         setMessage("PHATBOT could not resend the confirmation email right now. Please try again.");
         return;
       }
