@@ -9,9 +9,14 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "ios:add": "cap add ios",
+    "ios:sync": "cap sync ios",
+    "ios:open": "cap open ios"
   },
   "dependencies": {
+    "@capacitor/core": "8.5.0",
+    "@capacitor/ios": "8.5.0",
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
     "next": "latest",
@@ -21,6 +26,7 @@
     "xlsx": "latest"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.0",
     "@tailwindcss/postcss": "latest",
     "@types/node": "latest",
     "@types/react": "latest",
