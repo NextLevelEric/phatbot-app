@@ -2,7 +2,7 @@ import UIKit
 import Capacitor
 
 final class PHATBOTBridgeViewController: CAPBridgeViewController {
-    override open func capacitorDidLoad() {
+    override func capacitorDidLoad() {
         super.capacitorDidLoad()
         bridge?.registerPluginInstance(HealthKitPlugin())
     }
