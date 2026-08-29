@@ -101,7 +101,28 @@ final class HealthKitManager {
         store.execute(HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .discreteAverage) { _, statistics, error in if let error { completion(.failure(error)); return }; completion(.success(statistics?.averageQuantity()?.doubleValue(for: unit))) })
     }
 
-    private func activityName(_ type: HKWorkoutActivityType) -> String { switch type { case .running: return "Run"; case .walking: return "Walk"; case .cycling: return "Bike Ride"; case .hiking: return "Hike"; case .rowing: return "Rowing"; case .swimming: return "Swim"; case .elliptical: return "Elliptical"; case .stairClimbing: return "Stair Climbing"; default: return "Cardio Workout" } }
+    private func activityName(_ type: HKWorkoutActivityType) -> String {
+        switch type {
+        case .running: return "Run"
+        case .walking: return "Walk"
+        case .cycling: return "Bike Ride"
+        case .hiking: return "Hike"
+        case .rowing: return "Rowing"
+        case .swimming: return "Swim"
+        case .elliptical: return "Elliptical"
+        case .stairClimbing: return "Stair Climbing"
+        case .traditionalStrengthTraining: return "Strength Training"
+        case .functionalStrengthTraining: return "Functional Strength Training"
+        case .coreTraining: return "Core Training"
+        case .crossTraining: return "Cross Training"
+        case .highIntensityIntervalTraining: return "HIIT"
+        case .flexibility: return "Flexibility"
+        case .yoga: return "Yoga"
+        case .pilates: return "Pilates"
+        case .mixedCardio: return "Mixed Cardio"
+        default: return "Workout"
+        }
+    }
     private func fetchSleep(start: Date, end: Date, completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
         guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { completion(.success([])); return }; let predicate = HKQuery.predicateForSamples(withStart: start, end: end); let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
         store.execute(HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { _, samples, error in if let error { completion(.failure(error)); return }; completion(.success((samples as? [HKCategorySample] ?? []).map { ["value": $0.value, "startDate": self.iso($0.startDate), "endDate": self.iso($0.endDate), "durationSeconds": $0.endDate.timeIntervalSince($0.startDate)] })) })
