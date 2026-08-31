@@ -16,10 +16,19 @@ jobs:
       APP_VERSION: 1.0
 
     steps:
-      - name: Check out iOS shell branch
+      - name: Check out selected workflow branch
         uses: actions/checkout@v4
         with:
-          ref: feature/ios-shell
+          ref: ${{ github.ref }}
+
+      - name: Verify checked-out HealthKit source
+        shell: bash
+        run: |
+          echo "Workflow ref: $GITHUB_REF"
+          echo "Checked out commit: $(git rev-parse HEAD)"
+          grep -q 'fetchDailyMetrics' ios/App/App/HealthKitManager.swift || { echo "Expected daily HealthKit metrics code is missing"; exit 1; }
+          grep -q 'sourceWorkoutId' ios/App/App/HealthKitManager.swift || { echo "Expected enriched HealthKit workout code is missing"; exit 1; }
+          echo "Verified daily metrics and enriched workout payload source."
 
       - name: Verify Xcode and iOS SDK versions
         shell: bash
@@ -41,8 +50,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Sync Capacitor iOS project
-        run: npm run ios:sync
+      - name: Refresh Capacitor iOS config
+        shell: bash
+        run: |
+          npx cap copy ios
+          test -f ios/App/CapApp-SPM/Package.swift || { echo "Missing Capacitor Swift Package Manager package"; exit 1; }
 
       - name: Validate signing and App Store Connect secrets
         shell: bash

@@ -1,4 +1,4 @@
-import { isPrEligibleSetType } from "@/features/scoring/setTypes";
+import { isPrEligibleSetType } from "./setTypes";
 
 export type PRSet = {
   weight: number;
