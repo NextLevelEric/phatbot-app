@@ -1,4 +1,4 @@
-import { isVolumeSetType } from "@/features/scoring/setTypes";
+import { isVolumeSetType } from "./setTypes";
 
 export type StrengthSet = {
   weight: number;
