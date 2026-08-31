@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { trackProductEvent } from "@/lib/productAnalytics";
 
 const AUTH_TIMEOUT_MS = 12000;
 const MODE_KEY = "phatbot:preferred-mode";
@@ -84,6 +85,9 @@ function AuthContent() {
       }
 
       const userId = sessionData.session.user.id;
+      await trackProductEvent("registration_completed", {
+  dedupeKey: "lifetime",
+});
       await supabase.rpc("claim_my_athlete_invitations");
       if (mode === "signin") {
         const [{ data: coach }, { data: athlete }] = await Promise.all([supabase.from("coach_profiles").select("user_id").eq("user_id", userId).maybeSingle(),supabase.from("athlete_profiles").select("user_id").eq("user_id", userId).maybeSingle()]);
