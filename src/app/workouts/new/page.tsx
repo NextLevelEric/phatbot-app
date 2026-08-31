@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { trackProductEvent } from "@/lib/productAnalytics";
 
 export default function NewWorkoutPage() {
   const [name, setName] = useState("");
@@ -46,7 +47,13 @@ export default function NewWorkoutPage() {
       setSaving(false);
       return;
     }
-
+    
+await trackProductEvent("first_workout_created", {
+  dedupeKey: "lifetime",
+  entityType: "workout",
+  entityId: data.id,
+});
+    
     window.location.href = `/workouts/${data.id}`;
   }
 
