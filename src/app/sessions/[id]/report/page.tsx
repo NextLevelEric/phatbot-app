@@ -8,6 +8,7 @@ import { explainExerciseScore, scoreExercisePerformance, type ExerciseScoreResul
 import { detectPersonalRecords, type PersonalRecordResult, type PRSet } from "@/features/scoring/personalRecords";
 import { calculateStrengthChange, type StrengthChangeResult } from "@/features/scoring/strengthChange";
 import { formatHistoricalPerformanceDate, reportExerciseStatus, type HistoricalExercisePerformance } from "@/features/history/exerciseComparison";
+import { trackProductEvent } from "@/lib/productAnalytics";
 
 type RawSet = { weight:number; reps:number; partial_reps:number; set_type:string; set_number?:number };
 type ExerciseSession = { exercise_id:string; exercise_name_snapshot:string; position:number; notes:string|null; sets:RawSet[] };
@@ -35,6 +36,13 @@ export default function WorkoutReportPage(){
     setWeightUnit(athleteProfile?.preferred_unit==="kg"?"kg":"lb");
     const{data:currentSession,error:currentError}=await supabase.from("workout_sessions").select("id, workout_id, workout_name_snapshot, completed_at, notes").eq("id",params.id).eq("athlete_user_id",user.id).eq("status","completed").single();
     if(currentError||!currentSession){setMessage(currentError?.message??"Completed workout not found.");setLoading(false);return;}
+
+await trackProductEvent("report_viewed", {
+  dedupeKey: params.id,
+  entityType: "workout_session",
+  entityId: params.id,
+});
+    
     const{data:feedbackRows}=await supabase.from("coach_workout_feedback").select("id, feedback, coach_user_id, created_at, updated_at").eq("workout_session_id",params.id).eq("athlete_user_id",user.id).order("updated_at",{ascending:false});
     setCoachFeedback((feedbackRows??[])as CoachFeedback[]);
     if((feedbackRows??[]).length>0){const{error}=await supabase.rpc("mark_coach_feedback_read",{p_workout_session_id:params.id});if(error)console.error("PHATBOT could not mark coach feedback read",error);}
