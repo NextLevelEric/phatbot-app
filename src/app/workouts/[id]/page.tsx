@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { trackProductEvent } from "@/lib/productAnalytics";
 
 type Workout = { id: string; name: string; description: string | null };
 type Exercise = { id: string; name: string; muscle_group: string | null; equipment: string | null };
@@ -138,6 +139,11 @@ export default function WorkoutDetailPage() {
     const sessionExercises = workoutExercises.map((item) => ({ workout_session_id: newSession.id, workout_exercise_id: item.id, exercise_id: item.exercise.id, exercise_name_snapshot: item.exercise.name, position: item.position, prescribed_set_targets_snapshot: fallbackTarget(item) }));
     const { error: exerciseError } = await supabase.from("exercise_sessions").insert(sessionExercises);
     if (exerciseError) { await supabase.from("workout_sessions").delete().eq("id", newSession.id); setMessage(exerciseError.message); setWorking(false); return; }
+    await trackProductEvent("workout_started", {
+  dedupeKey: newSession.id,
+  entityType: "workout_session",
+  entityId: newSession.id,
+});
     window.location.href = `/sessions/${newSession.id}`;
   }
 
