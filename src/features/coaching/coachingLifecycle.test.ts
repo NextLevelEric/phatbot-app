@@ -13,7 +13,7 @@ describe("PHATBOT coaching lifecycle wiring", () => {
       'import { syncAthletePlateauSignals } from "@/features/coaching/plateauSignals";'
     );
     expect(liveWorkout).toMatch(
-      /await\s+syncAthletePlateauSignals\(supabase,\s*user\.id\)/
+      /await\s+syncAthletePlateauSignals\((?:supabase|s),\s*user\.id\)/
     );
   });
 
