@@ -25,9 +25,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>PHATBOT reads your Apple Health and Apple Watch fitness data so you can review recovery, activity, and training trends alongside your workout performance.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>PHATBOT requests HealthKit access for its training and recovery features. PHATBOT currently reads your health and workout data and does not save new health data to Apple Health.</string>
+	<string>PHATBOT reads your steps, active energy, workouts, workout distance and heart rate, resting heart rate, and HRV to show activity history and training trends. Daily activity and workout details are saved to your PHATBOT account.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

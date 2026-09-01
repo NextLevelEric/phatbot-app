@@ -17,12 +17,6 @@ export type HealthKitSnapshot = {
     durationSeconds: number;
     activeEnergyKcal?: number | null;
   }>;
-  sleep?: Array<{
-    value: number;
-    startDate: string;
-    endDate: string;
-    durationSeconds: number;
-  }>;
 };
 
 type HealthKitPlugin = {

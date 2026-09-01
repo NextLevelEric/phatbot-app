@@ -14,7 +14,6 @@ final class HealthKitManager {
         let quantityIdentifiers: [HKQuantityTypeIdentifier] = [.restingHeartRate, .heartRateVariabilitySDNN, .activeEnergyBurned, .stepCount, .heartRate, .distanceWalkingRunning, .distanceCycling]
         for identifier in quantityIdentifiers { if let type = HKObjectType.quantityType(forIdentifier: identifier) { readTypes.insert(type) } }
         readTypes.insert(HKObjectType.workoutType())
-        if let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { readTypes.insert(sleepType) }
         store.requestAuthorization(toShare: [], read: readTypes) { success, error in
             if let error { completion(.failure(error)) } else if success { completion(.success(())) } else { completion(.failure(HealthKitError.authorizationFailed)) }
         }
@@ -33,7 +32,6 @@ final class HealthKitManager {
         group.enter(); fetchCumulativeQuantity(.stepCount, unit: .count(), start: start, end: end) { if case .success(let v) = $0 { assign("steps", v) } else if case .failure(let e) = $0 { capture(e) }; group.leave() }
         group.enter(); fetchDailyMetrics(start: start, end: end) { if case .success(let v) = $0 { assign("dailyMetrics", v) } else if case .failure(let e) = $0 { capture(e) }; group.leave() }
         group.enter(); fetchWorkouts(start: start, end: end) { if case .success(let v) = $0 { assign("workouts", v) } else if case .failure(let e) = $0 { capture(e) }; group.leave() }
-        group.enter(); fetchSleep(start: start, end: end) { if case .success(let v) = $0 { assign("sleep", v) } else if case .failure(let e) = $0 { capture(e) }; group.leave() }
         group.notify(queue: .main) { capturedError.map { completion(.failure($0)) } ?? completion(.success(payload)) }
     }
 
@@ -122,10 +120,6 @@ final class HealthKitManager {
         case .mixedCardio: return "Mixed Cardio"
         default: return "Workout"
         }
-    }
-    private func fetchSleep(start: Date, end: Date, completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
-        guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { completion(.success([])); return }; let predicate = HKQuery.predicateForSamples(withStart: start, end: end); let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
-        store.execute(HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { _, samples, error in if let error { completion(.failure(error)); return }; completion(.success((samples as? [HKCategorySample] ?? []).map { ["value": $0.value, "startDate": self.iso($0.startDate), "endDate": self.iso($0.endDate), "durationSeconds": $0.endDate.timeIntervalSince($0.startDate)] })) })
     }
     private func iso(_ date: Date) -> String { ISO8601DateFormatter().string(from: date) }
     private func dayString(_ date: Date) -> String { let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date) }

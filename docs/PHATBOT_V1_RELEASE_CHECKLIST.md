@@ -43,6 +43,9 @@ Fix anything that prevents an athlete from training, understanding the result, o
 - [ ] Existing web app packaged as an iOS app with intentional native shell behavior.
 - [ ] App icon, launch screen, status-bar/safe-area behavior, keyboard behavior, and external-link handling verified.
 - [ ] Login persists correctly after app close/reopen.
+- [ ] Apple Health remains optional and the app remains usable when permission is denied.
+- [ ] Apple Health requests only the documented read types, performs no writes, and syncs existing step, activity, and workout history correctly.
+- [ ] Apple Health purpose copy, privacy policy language, and App Store Connect Health and Fitness disclosures match the production build.
 - [ ] Camera/photo/file permissions are described only if the production app actually requests them.
 - [ ] First TestFlight build installs and launches successfully on a physical iPhone.
 - [ ] TestFlight smoke test completed by Eric.
@@ -66,7 +69,6 @@ Fix anything that prevents an athlete from training, understanding the result, o
 Do not delay v1 solely for these unless they become required by beta testing:
 
 - Nutrition tracking
-- Apple Health / HealthKit integration
 - Push notifications
 - Expanded exercise video library
 - More charts or dashboard widgets
