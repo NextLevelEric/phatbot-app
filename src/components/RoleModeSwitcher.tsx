@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const MODE_KEY = "phatbot:preferred-mode";
 type Mode = "athlete" | "coach";
@@ -65,7 +66,7 @@ export default function RoleModeSwitcher() {
   const links = currentMode === "coach" ? coachLinks : athleteLinks;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-zinc-800 bg-black/95 backdrop-blur">
+    <header className="phat-app-header sticky top-0 z-50 border-b border-zinc-800 bg-black/95 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 py-2 sm:px-6">
         <Link href={dashboardHref} className="flex min-w-0 items-center gap-2 rounded-md" aria-label={`Return to ${currentMode} dashboard`}>
           <img src="/branding/PHATbot%20ICON.png" alt="" className="h-8 w-8 shrink-0 object-contain" />
@@ -81,6 +82,7 @@ export default function RoleModeSwitcher() {
             <button type="button" onClick={() => switchMode("athlete")} className={`whitespace-nowrap rounded-md px-3 py-2 transition-colors ${currentMode === "athlete" ? "phat-accent-bg" : "text-zinc-300 hover:text-white"}`}>Athlete View</button>
             <button type="button" onClick={() => switchMode("coach")} className={`whitespace-nowrap rounded-md px-3 py-2 transition-colors ${currentMode === "coach" ? "phat-accent-bg" : "text-zinc-300 hover:text-white"}`}>Coach View</button>
           </div>}
+          <ThemeToggle />
           <button type="button" onClick={() => setMenuOpen(v => !v)} className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-700 text-xl text-white md:hidden" aria-label="Open navigation" aria-expanded={menuOpen}>☰</button>
         </div>
       </div>
