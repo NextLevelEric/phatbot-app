@@ -8,12 +8,13 @@ const config: CapacitorConfig = {
   webDir: 'ios-shell',
   server: {
     url: `https://${previewHost}`,
-    allowNavigation: [previewHost],
+    allowNavigation: ['*.vercel.app'],
     cleartext: false,
   },
   ios: {
     contentInset: 'automatic',
     scrollEnabled: true,
+    allowsLinkPreview: false,
   },
 };
 
