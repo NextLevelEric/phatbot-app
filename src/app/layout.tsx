@@ -4,6 +4,8 @@ import RoleModeSwitcher from "@/components/RoleModeSwitcher";
 import AthleteBottomNav from "@/components/AthleteBottomNav";
 import LiveWorkoutAccordion from "@/components/LiveWorkoutAccordion";
 import LiveWorkoutConnectionStatus from "@/components/LiveWorkoutConnectionStatus";
+import LiveWorkoutSocialLayer from "@/components/LiveWorkoutSocialLayer";
+import PendingWorkoutRoomRedirect from "@/components/PendingWorkoutRoomRedirect";
 import AppFooter from "@/components/AppFooter";
 import "./globals.css";
 import "./theme-overrides.css";
@@ -25,9 +27,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body>
         <ScorePersistenceAgent />
+        <PendingWorkoutRoomRedirect />
         <RoleModeSwitcher />
         <LiveWorkoutAccordion />
         <LiveWorkoutConnectionStatus />
+        <LiveWorkoutSocialLayer />
         {children}
         <AppFooter />
         <AthleteBottomNav />
