@@ -11,10 +11,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out PHATBOT mobile shell
+      - name: Check out selected PHATBOT branch
         uses: actions/checkout@v4
         with:
-          ref: feature/ios-shell
+          ref: ${{ github.ref }}
+
+      - name: Verify production mobile shell
+        shell: bash
+        run: |
+          echo "Workflow ref: $GITHUB_REF"
+          echo "Checked out commit: $(git rev-parse HEAD)"
+          grep -q "https://phatbot-app.vercel.app" capacitor.config.ts || { echo "Expected production PHATBOT URL is missing"; exit 1; }
+          test -f ios-shell/index.html || { echo "Missing Capacitor webDir fallback"; exit 1; }
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -48,13 +56,13 @@ jobs:
       - name: Prepare PHATBOT APK
         run: |
           mkdir -p build/android
-          cp android/app/build/outputs/apk/debug/app-debug.apk build/android/PHATBOT-debug.apk
-          ls -lh build/android/PHATBOT-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk "build/android/PHATBOT-beta-${GITHUB_RUN_NUMBER}.apk"
+          ls -lh build/android/*.apk
 
       - name: Upload PHATBOT APK
         uses: actions/upload-artifact@v4
         with:
-          name: PHATBOT-Android-APK
-          path: build/android/PHATBOT-debug.apk
+          name: PHATBOT-Android-Beta-${{ github.run_number }}
+          path: build/android/PHATBOT-beta-${{ github.run_number }}.apk
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
