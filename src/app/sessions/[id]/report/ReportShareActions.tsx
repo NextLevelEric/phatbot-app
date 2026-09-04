@@ -1,54 +1,9 @@
 "use client";
 
-import { useEffect,useState } from "react";
-import WorkoutWinShareCard from "@/components/WorkoutWinShareCard";
+import { useEffect } from "react";
 
-type ShareData={workout:string;score:string|null;volume:string|null;prs:{exercise:string;result:string}[]};
-
-function readReport():ShareData|null{
-  const main=document.querySelector("main");
-  if(!main)return null;
-  const text=main.textContent??"";
-  if(!text.includes("PHATBOT Workout Report"))return null;
-  const workout=main.querySelector("h1")?.textContent?.trim()??"Workout";
-  const score=text.match(/Progressive Overload Score\s*(BASELINE|\d+%)/i)?.[1]??null;
-  const volume=text.match(/Training Volume vs Last Workout\s*(N\/A|[+-]?\d+(?:\.\d+)?%)/i)?.[1]??null;
-  const prs:{exercise:string;result:string}[]=[];
-  const prHeading=[...main.querySelectorAll("h2")].find(h=>/\d+\s+PRs? today/i.test(h.textContent??""));
-  const prSection=prHeading?.closest("section")??null;
-  if(prSection){
-    for(const card of [...prSection.querySelectorAll(":scope > div > div")]){
-      const lines=[...card.querySelectorAll("p")].map(p=>p.textContent?.trim()??"").filter(Boolean);
-      if(lines.length>=2)prs.push({exercise:lines[0],result:lines[1]});
-    }
-  }
-  if(prs.length===0){
-    const win=[...main.querySelectorAll("section")].find(s=>(s.textContent??"").includes("PHATBOT WIN CARD"));
-    if(win){
-      const exercise=win.querySelector("h2")?.textContent?.trim()??"Personal Record";
-      const result=[...win.querySelectorAll("p")].map(p=>p.textContent?.trim()??"").find(v=>/\d+\s*(lb|kg)\s*[×x]\s*\d+/i.test(v))??"New PR";
-      prs.push({exercise,result});
-    }
-  }
-  return {workout,score,volume,prs};
-}
-
-export default function ReportShareActions(){
-  const[data,setData]=useState<ShareData|null>(null);
-  useEffect(()=>{
-    let stopped=false;
-    const refresh=()=>{if(stopped)return;const next=readReport();if(next)setData(next)};
-    refresh();
-    const observer=new MutationObserver(refresh);
-    observer.observe(document.body,{childList:true,subtree:true,characterData:true});
-    const interval=window.setInterval(refresh,500);
-    return()=>{stopped=true;observer.disconnect();window.clearInterval(interval)};
-  },[]);
-  if(!data)return null;
-  const isWin=(data.score&&data.score!=="BASELINE"&&parseFloat(data.score)>50)||(data.volume&&data.volume!=="N/A"&&parseFloat(data.volume)>0);
-  return <div className="mx-auto flex max-w-2xl flex-col gap-4 px-4 pb-28 sm:px-6">
-    {data.prs.map((pr,i)=><WorkoutWinShareCard key={`${pr.exercise}-${i}`} kind="pr" workoutName={data.workout} headline={pr.exercise} result={pr.result} detail="Personal record detected by PHATBOT"/>)}
-    {isWin&&<WorkoutWinShareCard kind="workout" workoutName={data.workout} headline="WORKOUT WIN" result={data.volume&&data.volume!=="N/A"?`${data.volume} volume`:data.score??"Improved"} detail={data.score?`Progressive Overload Score: ${data.score}`:"PHATBOT detected improvement"}/>} 
-    {!data.prs.length&&!isWin&&<section className="rounded-2xl border border-zinc-800 p-4 text-sm text-zinc-500"><span className="font-black text-zinc-300">No shareable win detected on this report.</span></section>}
-  </div>
-}
+function esc(v:string){return v.replace(/[<>&'\"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c]??c));}
+function shareSvg(title:string,result:string,subtitle:string){return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><defs><radialGradient id="g"><stop stop-color="#ff0032" stop-opacity=".34"/><stop offset="1" stop-color="#050505" stop-opacity="0"/></radialGradient></defs><rect width="1080" height="1350" fill="#050505"/><circle cx="540" cy="520" r="520" fill="url(#g)"/><text x="80" y="110" font-family="Arial Black,Arial" font-size="30" font-weight="900" letter-spacing="8" fill="#ff0032">PHATBOT</text><text x="80" y="178" font-family="Arial,Helvetica" font-size="25" font-weight="700" letter-spacing="5" fill="#777">WIN DETECTED</text><text x="540" y="560" text-anchor="middle" font-family="Arial Black,Arial" font-size="70" font-weight="900" fill="#fff">${esc(title)}</text><text x="540" y="690" text-anchor="middle" font-family="Arial Black,Arial" font-size="76" font-weight="900" fill="#f7c623">${esc(result)}</text><text x="540" y="790" text-anchor="middle" font-family="Arial,Helvetica" font-size="31" font-weight="700" fill="#aaa">${esc(subtitle)}</text><line x1="140" x2="940" y1="1060" y2="1060" stroke="#252525" stroke-width="3"/><text x="540" y="1150" text-anchor="middle" font-family="Arial Black,Arial" font-size="30" font-weight="900" fill="#fff">TRAIN. TRACK. IMPROVE.</text><text x="540" y="1225" text-anchor="middle" font-family="Arial,Helvetica" font-size="24" font-weight="700" fill="#777">Powered by PHATBOT</text></svg>`;}
+async function shareCard(title:string,result:string,subtitle:string){const svg=shareSvg(title,result,subtitle),image=new Image(),url=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml;charset=utf-8"}));try{await new Promise<void>((res,rej)=>{image.onload=()=>res();image.onerror=rej;image.src=url});const c=document.createElement("canvas");c.width=1080;c.height=1350;const x=c.getContext("2d");if(!x)throw new Error("Canvas unavailable");x.drawImage(image,0,0);const blob=await new Promise<Blob>((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error("PNG generation failed")),"image/png",1));const file=new File([blob],"phatbot-win.png",{type:"image/png"});if(navigator.share&&navigator.canShare?.({files:[file]})){await navigator.share({title:`PHATBOT ${title}`,text:`${title}: ${result}`,files:[file]});return}const href=URL.createObjectURL(blob),a=document.createElement("a");a.href=href;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(href),1000);}finally{URL.revokeObjectURL(url)}}
+function addButton(target:HTMLElement,title:string,result:string,subtitle:string){if(target.querySelector(":scope > [data-phatbot-share]"))return;target.style.position="relative";const b=document.createElement("button");b.type="button";b.dataset.phatbotShare="true";b.setAttribute("aria-label",`Share ${title}`);b.title=`Share ${title}`;b.innerHTML=`<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>`;b.className="absolute bottom-3 right-3 grid h-9 w-9 place-items-center rounded-full border border-zinc-700 bg-black/80 text-zinc-300 shadow-lg backdrop-blur hover:border-[#ff0032] hover:text-white";b.onclick=e=>{e.stopPropagation();void shareCard(title,result,subtitle)};target.appendChild(b)}
+export default function ReportShareActions(){useEffect(()=>{const attach=()=>{const main=document.querySelector("main");if(!main)return;const workout=main.querySelector("h1")?.textContent?.trim()??"Workout";const sections=[...main.querySelectorAll<HTMLElement>("section")];const win=sections.find(s=>(s.textContent??"").includes("PHATBOT WIN CARD"));if(win){const title=win.querySelector("h2")?.textContent?.trim()??"Personal Record";const result=[...win.querySelectorAll("p")].map(p=>p.textContent?.trim()??"").find(v=>/\d+\s*(lb|kg)\s*[×x]\s*\d+/i.test(v))??"New PR";addButton(win,title,result,workout)}const prs=sections.find(s=>/Personal Records/i.test(s.textContent??""));if(prs){const cards=[...prs.querySelectorAll<HTMLElement>("div.rounded-xl")];for(const card of cards){const ps=[...card.querySelectorAll("p")].map(p=>p.textContent?.trim()??"").filter(Boolean);if(ps.length>=2)addButton(card,ps[0],ps[1],workout)}}for(const sec of sections){const t=sec.textContent??"";if(t.includes("Progressive Overload Score")){const m=t.match(/Progressive Overload Score\s*(BASELINE|\d+%)/i)?.[1];if(m&&m!=="BASELINE"&&parseFloat(m)>50)addButton(sec,"Progressive Overload Win",m,workout)}if(t.includes("Training Volume vs Last Workout")){const m=t.match(/Training Volume vs Last Workout\s*(N\/A|[+-]?\d+(?:\.\d+)?%)/i)?.[1];if(m&&m!=="N/A"&&parseFloat(m)>0)addButton(sec,"Training Volume Win",m,workout)}}};attach();const o=new MutationObserver(attach);o.observe(document.body,{childList:true,subtree:true});return()=>o.disconnect()},[]);return null;}
