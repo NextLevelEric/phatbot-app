@@ -1,0 +1,8 @@
+"use client";
+import {useEffect,useState} from "react";
+import {usePathname} from "next/navigation";
+import TrainTogetherCard from "@/components/TrainTogetherCard";
+import {createSupabaseBrowserClient} from "@/lib/supabase";
+type Session={id:string;workout_id:string|null;workout_name_snapshot:string;status:string};
+export default function LiveWorkoutSocialLayer(){const pathname=usePathname(),[session,setSession]=useState<Session|null>(null),[open,setOpen]=useState(false);const match=pathname.match(/^\/sessions\/([0-9a-f-]{36})$/i),sessionId=match?.[1]??null;
+useEffect(()=>{setOpen(false);setSession(null);if(!sessionId)return;let active=true;(async()=>{const s=createSupabaseBrowserClient(),{data:{user}}=await s.auth.getUser();if(!user||!active)return;const{data}=await s.from("workout_sessions").select("id,workout_id,workout_name_snapshot,status").eq("id",sessionId).eq("athlete_user_id",user.id).maybeSingle();if(active&&data?.status==="in_progress")setSession(data as Session)})();return()=>{active=false}},[sessionId]);if(!session)return null;return <div className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-40 sm:bottom-6 sm:right-6"><button type="button" onClick={()=>setOpen(v=>!v)} className="ml-auto flex h-14 items-center gap-2 rounded-full bg-[#ff0032] px-5 font-black text-white shadow-2xl active:scale-95"><span className="text-xl">⌁</span><span className="text-xs uppercase tracking-[.12em]">Train Together</span></button>{open&&<div className="absolute bottom-16 right-0 w-[min(92vw,390px)] rounded-3xl bg-[var(--background,#050505)] p-2 shadow-2xl"><TrainTogetherCard sessionId={session.id} workoutId={session.workout_id} workoutName={session.workout_name_snapshot}/></div>}</div>}
