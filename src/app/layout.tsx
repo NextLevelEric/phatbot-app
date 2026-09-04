@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import ScorePersistenceAgent from "@/components/ScorePersistenceAgent";
 import RoleModeSwitcher from "@/components/RoleModeSwitcher";
-import AthleteHomeLink from "@/components/AthleteHomeLink";
+import AthleteBottomNav from "@/components/AthleteBottomNav";
 import LiveWorkoutAccordion from "@/components/LiveWorkoutAccordion";
 import LiveWorkoutConnectionStatus from "@/components/LiveWorkoutConnectionStatus";
 import AppFooter from "@/components/AppFooter";
@@ -25,11 +25,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <ScorePersistenceAgent />
         <RoleModeSwitcher />
-        <AthleteHomeLink />
         <LiveWorkoutAccordion />
         <LiveWorkoutConnectionStatus />
         {children}
         <AppFooter />
+        <AthleteBottomNav />
       </body>
     </html>
   );
