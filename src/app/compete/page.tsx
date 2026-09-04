@@ -1,23 +1,25 @@
 import Link from "next/link";
 
-export default function CompetePage() {
-  return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
-      <section className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6 sm:p-8">
-        <p className="text-xs font-black uppercase tracking-[.22em] text-[#ff0032]">PHATBOT Compete</p>
-        <h1 className="mt-3 text-3xl font-black sm:text-4xl">The arena is warming up.</h1>
-        <p className="mt-4 max-w-xl text-zinc-300">
-          Beast, Eager Beaver, Cardio Bunny, and Step King are being prepared for PHATBOT competition.
-          Rankings will appear here only when the competition system can calculate them fairly and protect athlete privacy.
-        </p>
-        <div className="mt-6 rounded-2xl border border-zinc-800 bg-black p-5">
-          <p className="font-bold">No placeholder rankings. No fake scores.</p>
-          <p className="mt-2 text-sm text-zinc-400">Keep training. Your completed workouts are still building your PHATBOT history.</p>
-        </div>
-        <Link href="/workouts" className="mt-6 inline-flex rounded-xl bg-white px-5 py-3 font-black text-black">
-          Go Train →
-        </Link>
-      </section>
-    </main>
-  );
+type Award={name:string;cadence:string;artifact:"coin"|"carrot"|"crown"|"log";description:string};
+const awards:Award[]=[
+ {name:"Beast",cadence:"Daily + Weekly",artifact:"coin",description:"Strength improvement. Earned by beating your own established performance."},
+ {name:"Eager Beaver",cadence:"Weekly",artifact:"log",description:"Progressive overload consistency. Stack wins across the week."},
+ {name:"Cardio Bunny",cadence:"Daily + Weekly",artifact:"carrot",description:"Comparable cardio improvement. Faster, farther, or more efficient."},
+ {name:"Step King",cadence:"Daily + Weekly",artifact:"crown",description:"Valid steps. Simple rule: move more than everybody else."},
+];
+function Artifact({type}:{type:Award["artifact"]}){
+ if(type==="coin")return <div className="relative grid h-28 w-28 place-items-center rounded-full border-[7px] border-yellow-400 bg-gradient-to-br from-yellow-200 via-yellow-500 to-amber-700 shadow-[0_0_35px_rgba(250,204,21,.18)]"><div className="absolute inset-2 rounded-full border-2 border-amber-900/40"/><span className="relative text-center text-[13px] font-black leading-4 text-black">BEAST<br/>OF THE DAY</span></div>;
+ if(type==="crown")return <div className="text-7xl drop-shadow-[0_0_18px_rgba(250,204,21,.2)]">♛</div>;
+ if(type==="carrot")return <div className="relative text-7xl drop-shadow-[0_0_18px_rgba(250,204,21,.2)]"><span className="grayscale-[.1]">🥕</span><span className="absolute -bottom-2 left-1/2 h-4 w-12 -translate-x-1/2 rounded-t bg-yellow-500"/></div>;
+ return <div className="relative flex h-20 w-28 items-center justify-center"><div className="h-10 w-24 rounded-full border-2 border-amber-700 bg-gradient-to-b from-yellow-300 to-amber-600 shadow-[0_0_18px_rgba(250,204,21,.18)]"/><div className="absolute bottom-0 h-4 w-16 rounded-t bg-yellow-500"/></div>;
 }
+export default function CompetePage(){return <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-7 px-4 py-7 sm:px-6 sm:py-10">
+<header><p className="text-xs font-black uppercase tracking-[.22em] text-[#ff0032]">PHATBOT Compete</p><h1 className="mt-2 text-4xl font-black">Welcome to the arena.</h1><p className="mt-2 text-zinc-400">You don't have to be the strongest athlete. You have to improve.</p></header>
+<section className="overflow-hidden rounded-3xl border border-yellow-500/35 bg-gradient-to-br from-yellow-500/10 via-zinc-950 to-black p-6 text-center">
+ <p className="text-xs font-black uppercase tracking-[.22em] text-yellow-400">Today's Main Event</p><div className="mx-auto mt-5 flex justify-center"><Artifact type="coin"/></div><h2 className="mt-5 text-3xl font-black">Beast of the Day</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-400">The Beast rewards normalized strength improvement against your own history. Raw pounds alone don't win this thing.</p><div className="mx-auto mt-5 max-w-sm rounded-2xl border border-zinc-800 bg-black/70 p-4"><p className="font-black">Today's battle is still underway.</p><p className="mt-1 text-sm text-zinc-500">Results reconcile at noon ET tomorrow.</p></div>
+</section>
+<section><div className="flex items-end justify-between"><div><p className="text-xs font-black uppercase tracking-[.18em] text-zinc-500">The Trophy Case</p><h2 className="mt-1 text-2xl font-black">Four ways to win.</h2></div><span className="text-xs font-bold text-zinc-600">MORE COMING</span></div><div className="mt-4 grid grid-cols-2 gap-3">{awards.map(a=><article key={a.name} className="flex min-h-56 flex-col rounded-2xl border border-zinc-800 bg-zinc-950 p-4"><div className="flex h-24 items-center justify-center"><Artifact type={a.artifact}/></div><p className="mt-2 text-[10px] font-black uppercase tracking-[.15em] text-yellow-500">{a.cadence}</p><h3 className="mt-1 text-lg font-black">{a.name}</h3><p className="mt-2 text-xs leading-5 text-zinc-500">{a.description}</p></article>)}</div></section>
+<section className="rounded-2xl border border-zinc-800 p-5"><p className="text-xs font-black uppercase tracking-[.18em] text-[#ff0032]">How PHATBOT Competes</p><h2 className="mt-2 text-xl font-black">Fair fights. Real results.</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Beast, Eager Beaver, and Cardio Bunny reward improvement and consistency, not simply the biggest athlete or fastest runner. Step King is the exception: most valid steps takes the crown.</p><div className="mt-4 grid grid-cols-2 gap-2 text-center text-xs font-bold"><div className="rounded-xl bg-zinc-900 px-3 py-3">Daily Battles</div><div className="rounded-xl bg-zinc-900 px-3 py-3">Weekly Titles</div></div></section>
+<section className="rounded-3xl border border-[#ff0032]/40 bg-[#ff0032]/5 p-5"><p className="text-xs font-black uppercase tracking-[.18em] text-[#ff0032]">Build Your Case</p><h2 className="mt-2 text-2xl font-black">Want hardware? Give PHATBOT data.</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Completed workouts and comparable activity create eligible competition performances. Keep showing up and the arena gets more interesting.</p><Link href="/workouts" className="mt-4 flex w-full items-center justify-center rounded-xl bg-[#ff0032] px-5 py-4 font-black text-white">PHATBOT Train →</Link></section>
+<p className="pb-2 text-center text-[11px] leading-5 text-zinc-700">Rankings and winners appear only after the competition engine finalizes eligible results. No fake leaderboard data.</p>
+</main>;}
