@@ -6,6 +6,7 @@ import LiveWorkoutAccordion from "@/components/LiveWorkoutAccordion";
 import LiveWorkoutConnectionStatus from "@/components/LiveWorkoutConnectionStatus";
 import AppFooter from "@/components/AppFooter";
 import "./globals.css";
+import "./theme-overrides.css";
 
 export const metadata: Metadata = {
   title: "PHATBOT",
