@@ -2,9 +2,18 @@ import UIKit
 import Capacitor
 
 final class PHATBOTBridgeViewController: CAPBridgeViewController {
+    private let phatbotPreviewURL = URL(string: "https://phatbot-app-git-feature-athlete-mobile-shell-next-level11.vercel.app/")!
+
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
         bridge?.registerPluginInstance(HealthKitPlugin())
+
+        // TestFlight beta must render the remote PHATBOT preview inside Capacitor's
+        // WKWebView. Explicitly loading it here prevents iOS from treating the
+        // configured remote server URL as an external Safari destination.
+        if bridge?.webView?.url?.host != phatbotPreviewURL.host {
+            bridge?.webView?.load(URLRequest(url: phatbotPreviewURL))
+        }
     }
 }
 
