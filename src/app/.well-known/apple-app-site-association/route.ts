@@ -7,7 +7,7 @@ export function GET(){
     applinks:{
       apps:[],
       details:[{
-        appID:"TEAMID.com.nextleveldigitalmedia.phatbot",
+        appID:"S47LRBYFXA.com.nextleveldigitalmedia.phatbot",
         components:[
           {"/":"/train-together/*","comment":"Open PHATBOT Train Together invitations in the installed app"}
         ]
