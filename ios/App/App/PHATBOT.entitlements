@@ -6,6 +6,7 @@
 	<true/>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
+		<string>applinks:app.phatbotfit.com</string>
 		<string>applinks:phatbot-app.vercel.app</string>
 	</array>
 </dict>
