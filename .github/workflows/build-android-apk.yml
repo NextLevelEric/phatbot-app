@@ -21,8 +21,9 @@ jobs:
         run: |
           echo "Workflow ref: $GITHUB_REF"
           echo "Checked out commit: $(git rev-parse HEAD)"
-          grep -q "https://phatbot-app.vercel.app" capacitor.config.ts || { echo "Expected production PHATBOT URL is missing"; exit 1; }
+          grep -q "https://app.phatbotfit.com" capacitor.config.ts || { echo "Expected branded production PHATBOT URL is missing"; exit 1; }
           test -f ios-shell/index.html || { echo "Missing Capacitor webDir fallback"; exit 1; }
+          test -f android-native/HealthConnectPlugin.kt || { echo "Missing Health Connect native bridge"; exit 1; }
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -46,6 +47,47 @@ jobs:
           rm -rf android
           npx cap add android
           npx cap sync android
+
+      - name: Install Health Connect native bridge
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('android')
+          root_gradle = root / 'build.gradle'
+          app_gradle = root / 'app/build.gradle'
+          manifest = root / 'app/src/main/AndroidManifest.xml'
+
+          text = root_gradle.read_text()
+          marker = "classpath 'com.android.tools.build:gradle:"
+          if 'kotlin-gradle-plugin' not in text:
+              idx = text.find(marker)
+              if idx == -1:
+                  raise SystemExit('Could not locate Android Gradle plugin dependency')
+              line_end = text.find('\n', idx)
+              text = text[:line_end+1] + "        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.20'\n" + text[line_end+1:]
+              root_gradle.write_text(text)
+
+          text = app_gradle.read_text()
+          if "org.jetbrains.kotlin.android" not in text:
+              text = text.replace("apply plugin: 'com.android.application'", "apply plugin: 'com.android.application'\napply plugin: 'org.jetbrains.kotlin.android'")
+          dep_marker = 'dependencies {'
+          if 'androidx.health.connect:connect-client' not in text:
+              text = text.replace(dep_marker, dep_marker + "\n    implementation 'androidx.health.connect:connect-client:1.1.0'\n    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'")
+          app_gradle.write_text(text)
+
+          text = manifest.read_text()
+          permissions = '''\n    <uses-permission android:name="android.permission.health.READ_STEPS" />\n    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />\n    <uses-permission android:name="android.permission.health.READ_EXERCISE" />\n    <uses-permission android:name="android.permission.health.READ_DISTANCE" />\n    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />\n    <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />\n    <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" />\n    <uses-permission android:name="android.permission.health.READ_SLEEP" />\n    <uses-permission android:name="android.permission.health.READ_WEIGHT" />\n'''
+          if 'READ_STEPS' not in text:
+              text = text.replace('<application', permissions + '\n    <application', 1)
+          manifest.write_text(text)
+          PY
+
+          pkg="android/app/src/main/java/com/nextleveldigitalmedia/phatbot"
+          mkdir -p "$pkg"
+          cp android-native/HealthConnectPlugin.kt "$pkg/HealthConnectPlugin.kt"
+          cp android-native/MainActivity.java "$pkg/MainActivity.java"
 
       - name: Build debug APK
         working-directory: android
