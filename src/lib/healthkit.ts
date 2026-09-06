@@ -10,12 +10,22 @@ export type HealthKitSnapshot = {
   hrvMs?: number | null;
   activeEnergyKcal?: number;
   steps?: number;
+  weightKg?: number | null;
+  dailyMetrics?: Array<{
+    date: string;
+    steps?: number;
+    activeEnergyKcal?: number;
+  }>;
   workouts?: Array<{
+    sourceWorkoutId: string;
     activityType: number;
+    activityName?: string;
     startDate: string;
     endDate: string;
     durationSeconds: number;
+    distanceMeters?: number | null;
     activeEnergyKcal?: number | null;
+    averageHeartRateBpm?: number | null;
   }>;
   sleep?: Array<{
     value: number;
