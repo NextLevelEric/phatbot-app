@@ -6,6 +6,7 @@ import LiveWorkoutAccordion from "@/components/LiveWorkoutAccordion";
 import LiveWorkoutConnectionStatus from "@/components/LiveWorkoutConnectionStatus";
 import LiveWorkoutSocialLayer from "@/components/LiveWorkoutSocialLayer";
 import PendingWorkoutRoomRedirect from "@/components/PendingWorkoutRoomRedirect";
+import NativeInteractionGuard from "@/components/NativeInteractionGuard";
 import AppFooter from "@/components/AppFooter";
 import "./globals.css";
 import "./theme-overrides.css";
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
+        <NativeInteractionGuard />
         <ScorePersistenceAgent />
         <PendingWorkoutRoomRedirect />
         <RoleModeSwitcher />
