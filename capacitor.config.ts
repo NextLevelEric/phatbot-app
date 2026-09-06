@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'PHATBOT',
   webDir: 'ios-shell',
   server: {
-    url: 'https://phatbot-app.vercel.app',
+    url: 'https://app.phatbotfit.com',
     cleartext: false,
   },
   ios: {
