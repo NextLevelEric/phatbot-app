@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import PlateauReportSignal from "./PlateauReportSignal";
 import ReportShareActions from "./ReportShareActions";
 import WorkoutReportPRShareActions from "@/components/WorkoutReportPRShareActions";
+import TrainTogetherReportCard from "@/components/TrainTogetherReportCard";
 
 export default function WorkoutReportLayout({ children }: { children: ReactNode }) {
   const params = useParams<{ id: string }>();
@@ -13,6 +14,7 @@ export default function WorkoutReportLayout({ children }: { children: ReactNode 
     <>
       <PlateauReportSignal sessionId={params.id} />
       {children}
+      <TrainTogetherReportCard sessionId={params.id} />
       <ReportShareActions />
       <WorkoutReportPRShareActions sessionId={params.id} />
     </>
