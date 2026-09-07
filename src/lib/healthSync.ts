@@ -1,10 +1,12 @@
 import { createSupabaseBrowserClient } from '@/lib/supabase';
 import { getNativeHealthSnapshot, type PhatbotHealthProvider } from '@/lib/health';
+import { buildStandardizedCardioSegments } from '@/features/cardio/segments';
 
 type SyncResult = {
   provider: Exclude<PhatbotHealthProvider, 'none'>;
   dailyMetrics: number;
   workouts: number;
+  cardioSegments: number;
 };
 
 function sourceFor(provider: Exclude<PhatbotHealthProvider, 'none'>) {
@@ -47,8 +49,6 @@ export async function syncNativeHealth(days = 14): Promise<SyncResult | null> {
     source,
   }));
 
-  // If the native provider returned no per-day rows, still persist the latest
-  // recovery values against today so PHATBOT can use them without inventing history.
   const today = localDateKey(new Date().toISOString());
   if (!daily.some((row) => row.metric_date === today)) {
     daily.push({
@@ -68,7 +68,8 @@ export async function syncNativeHealth(days = 14): Promise<SyncResult | null> {
     row.hrv_ms = snapshot.hrvMs == null ? null : Number(snapshot.hrvMs);
   }
 
-  const workouts = (snapshot.workouts ?? []).map((workout) => ({
+  const nativeWorkouts = snapshot.workouts ?? [];
+  const workouts = nativeWorkouts.map((workout) => ({
     athlete_user_id: user.id,
     source,
     source_workout_id: workout.sourceWorkoutId,
@@ -89,12 +90,39 @@ export async function syncNativeHealth(days = 14): Promise<SyncResult | null> {
     if (error) throw error;
   }
 
+  let cardioSegments = 0;
   if (workouts.length) {
-    const { error } = await supabase.from('cardio_activities').upsert(workouts, {
+    const { data: savedWorkouts, error } = await supabase.from('cardio_activities').upsert(workouts, {
       onConflict: 'athlete_user_id,source,source_workout_id',
-    });
+    }).select('id,source_workout_id');
     if (error) throw error;
+
+    const activityIdBySourceId = new Map((savedWorkouts ?? []).map((row) => [row.source_workout_id, row.id]));
+    const segments = nativeWorkouts.flatMap((workout) => {
+      const cardioActivityId = activityIdBySourceId.get(workout.sourceWorkoutId);
+      if (!cardioActivityId) return [];
+      return buildStandardizedCardioSegments(workout.activityName, workout.distanceSamples).map((segment) => ({
+        athlete_user_id: user.id,
+        cardio_activity_id: cardioActivityId,
+        segment_key: segment.key,
+        segment_label: segment.label,
+        distance_meters: segment.distanceMeters,
+        duration_seconds: segment.durationSeconds,
+        start_offset_seconds: segment.startOffsetSeconds,
+        end_offset_seconds: segment.endOffsetSeconds,
+        source,
+        updated_at: new Date().toISOString(),
+      }));
+    });
+
+    if (segments.length) {
+      const { error: segmentError } = await supabase.from('cardio_activity_segments').upsert(segments, {
+        onConflict: 'cardio_activity_id,segment_key',
+      });
+      if (segmentError) throw segmentError;
+      cardioSegments = segments.length;
+    }
   }
 
-  return { provider: snapshot.provider, dailyMetrics: daily.length, workouts: workouts.length };
+  return { provider: snapshot.provider, dailyMetrics: daily.length, workouts: workouts.length, cardioSegments };
 }
