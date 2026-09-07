@@ -23,6 +23,11 @@ export type HealthConnectSnapshot = {
     distanceMeters?: number | null;
     activeEnergyKcal?: number | null;
     averageHeartRateBpm?: number | null;
+    distanceSamples?: Array<{
+      startOffsetSeconds: number;
+      endOffsetSeconds: number;
+      distanceMeters: number;
+    }>;
   }>;
   sleep?: Array<{
     value: number;
