@@ -10,18 +10,25 @@ type Program = { program_id:string; name:string; description:string|null; versio
 export default function EricCurrentProgramCard() {
   const pathname = usePathname();
   const [program,setProgram] = useState<Program|null>(null);
+  const [eligible,setEligible] = useState(false);
   const [working,setWorking] = useState(false);
   const [message,setMessage] = useState("");
 
   useEffect(()=>{
     if(pathname!=="/workouts") return;
     const supabase=createSupabaseBrowserClient();
-    void supabase.rpc("get_current_eric_program").then(({data,error})=>{
+    void (async()=>{
+      const { data: { user } } = await supabase.auth.getUser();
+      if(!user) return;
+      const { data: athlete } = await supabase.from("athlete_profiles").select("show_eric_program_onboarding").eq("user_id",user.id).maybeSingle();
+      if(!athlete?.show_eric_program_onboarding) return;
+      setEligible(true);
+      const {data,error}=await supabase.rpc("get_current_eric_program");
       if(!error && data?.[0]) setProgram(data[0] as Program);
-    });
+    })();
   },[pathname]);
 
-  if(pathname!=="/workouts" || !program) return null;
+  if(pathname!=="/workouts" || !eligible || !program) return null;
 
   async function enroll(){
     setWorking(true); setMessage("");
