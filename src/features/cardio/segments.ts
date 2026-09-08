@@ -15,19 +15,22 @@ export type StandardizedCardioSegment = {
 
 const MILE_METERS = 1609.344;
 
-const RUN_TARGETS = [
-  { key: 'run-1mi', label: '1 Mile', meters: MILE_METERS },
-  { key: 'run-5k', label: '5K', meters: 5000 },
-  { key: 'run-10k', label: '10K', meters: 10000 },
+const DISTANCE_TARGETS = [
+  { suffix: '1mi', label: '1 Mile', meters: MILE_METERS },
+  { suffix: '5k', label: '5K', meters: 5000 },
+  { suffix: '10k', label: '10K', meters: 10000 },
 ] as const;
 
 function activityKey(name: string | null | undefined) {
   return (name ?? '').trim().toLowerCase();
 }
 
-function isRunOrWalk(name: string | null | undefined) {
+function benchmarkActivity(name: string | null | undefined): 'run' | 'walk' | 'hike' | null {
   const value = activityKey(name);
-  return value === 'run' || value.includes('running') || value === 'walk' || value.includes('walking') || value === 'hike' || value.includes('hiking');
+  if (value === 'run' || value.includes('running')) return 'run';
+  if (value === 'walk' || value.includes('walking')) return 'walk';
+  if (value === 'hike' || value.includes('hiking')) return 'hike';
+  return null;
 }
 
 function cumulativePoints(samples: DistanceSample[]) {
@@ -85,13 +88,14 @@ export function buildStandardizedCardioSegments(
   activityName: string | null | undefined,
   samples: DistanceSample[] | null | undefined,
 ): StandardizedCardioSegment[] {
-  if (!isRunOrWalk(activityName) || !samples?.length) return [];
+  const activity = benchmarkActivity(activityName);
+  if (!activity || !samples?.length) return [];
   const points = cumulativePoints(samples);
-  return RUN_TARGETS.flatMap((target) => {
+  return DISTANCE_TARGETS.flatMap((target) => {
     const best = fastestWindow(points, target.meters);
     if (!best) return [];
     return [{
-      key: target.key,
+      key: `${activity}-${target.suffix}`,
       label: target.label,
       distanceMeters: target.meters,
       ...best,
