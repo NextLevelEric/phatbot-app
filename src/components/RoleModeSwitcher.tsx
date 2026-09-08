@@ -66,7 +66,7 @@ export default function RoleModeSwitcher() {
   const links = currentMode === "coach" ? coachLinks : athleteLinks;
 
   return (
-    <header className="phat-app-header sticky top-0 z-50 border-b border-zinc-800 bg-black/95 backdrop-blur">
+    <header className="phat-app-header sticky top-0 z-50 bg-black/95 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 py-2 sm:px-6">
         <Link href={dashboardHref} className="flex min-w-0 items-center gap-2 rounded-md" aria-label={`Return to ${currentMode} dashboard`}>
           <img src="/branding/PHATbot%20ICON.png" alt="" className="h-8 w-8 shrink-0 object-contain" />
