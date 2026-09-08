@@ -34,8 +34,8 @@ export default function CoachDashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { window.location.href = "/auth"; return; }
 
-      const { data: coach } = await supabase.from("coach_profiles").select("user_id").eq("user_id", user.id).maybeSingle();
-      if (!coach) { setLoading(false); return; }
+      const { data: allowed, error: accessError } = await supabase.rpc("has_coach_dashboard_access", { p_user_id: user.id });
+      if (accessError || !allowed) { setLoading(false); return; }
       setEnabled(true);
 
       const [linksResult, pendingResult] = await Promise.all([
@@ -130,7 +130,7 @@ export default function CoachDashboardPage() {
   }, []);
 
   if (loading) return <main className="mx-auto min-h-screen max-w-3xl px-6 py-12 text-zinc-300">Beep boop... prioritizing coach signals.</main>;
-  if (!enabled) return <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-10"><header><p className="phat-accent text-sm font-semibold uppercase tracking-[.25em]">PHATBOT Coach</p><h1 className="mt-2 text-3xl font-bold">Coach Dashboard</h1></header><section className="rounded-xl border border-zinc-800 p-6"><h2 className="text-xl font-semibold">Coach mode is not enabled yet.</h2><Link href="/account" className="phat-accent-bg mt-5 inline-block rounded-lg px-5 py-3 font-semibold">Go to Account</Link></section></main>;
+  if (!enabled) return <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-10"><header><p className="phat-accent text-sm font-semibold uppercase tracking-[.25em]">PHATBOT</p><h1 className="mt-2 text-3xl font-bold">Coach Dashboard</h1></header><section className="rounded-xl border border-zinc-800 p-6"><h2 className="text-xl font-semibold">Coach tools are private.</h2><p className="mt-2 text-sm leading-6 text-zinc-400">PHATBOT athletes train with Eric by default. Coach administration is available only to approved accounts.</p><Link href="/" className="phat-accent-bg mt-5 inline-block rounded-lg px-5 py-3 font-semibold">Back to PHATBOT</Link></section></main>;
 
   const review = clients.filter(c=>c.signal==="review").length;
   const training = clients.filter(c=>c.signal==="plateau").length;
