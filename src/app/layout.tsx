@@ -4,7 +4,6 @@ import RoleModeSwitcher from "@/components/RoleModeSwitcher";
 import AthleteBottomNav from "@/components/AthleteBottomNav";
 import LiveWorkoutAccordion from "@/components/LiveWorkoutAccordion";
 import LiveWorkoutConnectionStatus from "@/components/LiveWorkoutConnectionStatus";
-import LiveWorkoutSocialLayer from "@/components/LiveWorkoutSocialLayer";
 import PendingWorkoutRoomRedirect from "@/components/PendingWorkoutRoomRedirect";
 import NativeInteractionGuard from "@/components/NativeInteractionGuard";
 import HealthConnectionPanel from "@/components/HealthConnectionPanel";
@@ -34,7 +33,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <RoleModeSwitcher />
         <LiveWorkoutAccordion />
         <LiveWorkoutConnectionStatus />
-        <LiveWorkoutSocialLayer />
         {children}
         <HealthConnectionPanel />
         <AppFooter />
