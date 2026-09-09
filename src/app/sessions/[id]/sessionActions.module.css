@@ -1,0 +1,18 @@
+.sessionShell :global(main > button:last-child) {
+  min-height: 3.25rem !important;
+  border: 1px solid rgb(63 63 70) !important;
+  background: transparent !important;
+  color: rgb(161 161 170) !important;
+  font-size: 0.875rem !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+}
+
+.sessionShell :global(main > button:last-child:hover) {
+  border-color: rgb(82 82 91) !important;
+  color: rgb(212 212 216) !important;
+}
+
+.sessionShell :global(main > button:last-child:disabled) {
+  opacity: 0.35 !important;
+}
