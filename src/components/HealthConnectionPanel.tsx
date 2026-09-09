@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { getNativeHealthProvider, requestNativeHealthAccess, type PhatbotHealthProvider } from "@/lib/health";
 import { syncNativeHealth } from "@/lib/healthSync";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 type State = "idle" | "connecting" | "syncing";
 
@@ -55,7 +56,12 @@ export default function HealthConnectionPanel() {
       if (!result) {
         setMessage(`${label} is not available yet. Connect it first, then try again.`);
       } else {
-        setMessage(`Beep boop. Synced ${result.dailyMetrics} days and ${result.workouts} workouts from ${label}.`);
+        const supabase = createSupabaseBrowserClient();
+        const { error: lifecycleError } = await supabase.rpc("phatbot_competition_lifecycle");
+        if (lifecycleError) {
+          console.error("PHATBOT could not refresh competition standings after health sync", lifecycleError);
+        }
+        setMessage(`Beep boop. Synced ${result.dailyMetrics} days and ${result.workouts} workouts from ${label}. Cardio Bunny and Step King standings were refreshed.`);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : `PHATBOT could not sync ${label}.`);
