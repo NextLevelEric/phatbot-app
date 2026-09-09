@@ -1,7 +1,8 @@
 import TrainTogetherRoomBanner from "@/components/TrainTogetherRoomBanner";
 import WorkoutCompletionGuard from "@/components/WorkoutCompletionGuard";
+import RestTimer from "@/components/RestTimer";
 import styles from "./sessionActions.module.css";
 
 export default function SessionLayout({children}:{children:React.ReactNode}){
- return <div className={styles.sessionShell}><WorkoutCompletionGuard/><TrainTogetherRoomBanner/>{children}</div>;
+ return <div className={styles.sessionShell}><WorkoutCompletionGuard/><TrainTogetherRoomBanner/><RestTimer/>{children}</div>;
 }
