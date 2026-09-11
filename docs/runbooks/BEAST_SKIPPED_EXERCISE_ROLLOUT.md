@@ -70,6 +70,11 @@ order by p.cadence,e.rank nulls last,e.athlete_user_id;
 
 ## 2. Apply only the reviewed forward SQL
 
+The existing competition lifecycle job runs every 15 minutes and rebuilds open
+periods. Begin this step immediately after an observed successful lifecycle run so
+the guarded manual checks can finish before the next scheduled run. Do not pause,
+reschedule, or otherwise change the lifecycle job for this rollout.
+
 Apply the contents of
 `supabase/migrations/20260911180023_fix_beast_skipped_exercise_scoring.sql`
 as a single statement batch. Do not run the migration directory or any other
