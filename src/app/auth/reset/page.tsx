@@ -20,7 +20,11 @@ export default function ResetPasswordPage() {
     });
 
     setLoading(false);
-    setMessage(error ? error.message : "Password reset email sent. Check your inbox.");
+    setMessage(
+      error
+        ? "We couldn't send a reset link right now. Please wait a moment and try again."
+        : "Password reset email sent. Check your inbox.",
+    );
   }
 
   return (
