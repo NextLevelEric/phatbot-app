@@ -24,6 +24,10 @@ function exerciseLiftTotal(sets: StrengthSet[]) {
     .reduce((sum, set) => sum + (set.weight * set.reps), 0);
 }
 
+function hasEligibleCompletedWork(sets: StrengthSet[]) {
+  return sets.some((set) => isVolumeSetType(set.setType) && set.reps > 0 && set.weight >= 0);
+}
+
 export function calculateStrengthChange(
   currentExercises: StrengthExercise[],
   previousExercises: StrengthExercise[],
@@ -36,15 +40,14 @@ export function calculateStrengthChange(
 
   for (const current of currentExercises) {
     const previous = previousByExercise.get(current.exerciseId);
-    if (!previous) continue;
+    if (!previous || !hasEligibleCompletedWork(current.sets)) continue;
 
     const currentTotal = exerciseLiftTotal(current.sets);
     const previousTotal = exerciseLiftTotal(previous.sets);
 
-    // A previously performed exercise that is present in today's workout but
-    // receives no working volume is meaningful workload information. Keep it
-    // in the comparison as zero current volume instead of dropping it and
-    // making an incomplete workout look artificially unchanged or N/A.
+    // Missing/skipped current work is not a regression, and new exercises only
+    // establish baselines. An actually performed lower-volume exercise remains
+    // comparable and can still produce a negative result.
     if (previousTotal <= 0) continue;
 
     currentLiftTotal += Math.max(currentTotal, 0);
