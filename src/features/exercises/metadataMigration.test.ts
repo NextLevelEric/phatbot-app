@@ -56,6 +56,15 @@ describe("canonical exercise metadata migration", () => {
     expect(sql).toContain("and e.normalized_name = c.normalized_name");
   });
 
+  it("classifies Conventional Deadlift as a glute-primary posterior-chain compound", () => {
+    expect(sql).toMatch(
+      /\('Conventional Deadlift','Glutes','Barbell'.*'glutes'::public\.exercise_muscle_group,'hinge'::public\.exercise_movement_pattern,'barbell'::public\.exercise_equipment_category,'compound'::public\.exercise_classification,'bilateral'::public\.exercise_laterality,'standing'::public\.exercise_setup\)/,
+    );
+    expect(sql).toContain("('Conventional Deadlift','hamstrings'::public.exercise_muscle_group,1)");
+    expect(sql).toContain("('Conventional Deadlift','back'::public.exercise_muscle_group,2)");
+    expect(sql).not.toContain("('Conventional Deadlift','glutes'::public.exercise_muscle_group");
+  });
+
   it("preserves workout history and labels custom rows without rewriting performance", () => {
     expect(sql).toContain("set is_custom = true");
     expect(sql).toContain("canonical_exercise_id = coalesce(canonical_exercise_id, id)");
