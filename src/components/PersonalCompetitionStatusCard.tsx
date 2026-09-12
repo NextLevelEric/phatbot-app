@@ -1,6 +1,7 @@
 import type { PersonalCompetitionStatus } from "@/features/competition/personalStatus";
+import CompetitionShareCard from "@/components/CompetitionShareCard";
 
-type Props = { status: PersonalCompetitionStatus };
+type Props = { status: PersonalCompetitionStatus; shareName: string };
 
 const stateStyles: Record<PersonalCompetitionStatus["state"], string> = {
   loading: "border-zinc-800 bg-zinc-950",
@@ -11,7 +12,7 @@ const stateStyles: Record<PersonalCompetitionStatus["state"], string> = {
   ranked: "border-[#ff0032]/45 bg-gradient-to-br from-[#ff0032]/10 via-zinc-950 to-black",
 };
 
-export default function PersonalCompetitionStatusCard({ status }: Props) {
+export default function PersonalCompetitionStatusCard({ status, shareName }: Props) {
   const weekly = status.cadence === "weekly";
   const rankedCount = status.rankedAthleteCount;
 
@@ -60,6 +61,25 @@ export default function PersonalCompetitionStatusCard({ status }: Props) {
         <div className="mt-4 border-t border-zinc-800/80 pt-3">
           <p className="text-xs font-bold leading-5 text-zinc-400">{status.timingCopy.primary}</p>
           {status.timingCopy.secondary && <p className="mt-1 text-[10px] leading-5 text-zinc-600">{status.timingCopy.secondary}</p>}
+        </div>
+      )}
+
+      {status.sharePayload && (
+        <div className="mt-4 flex items-center justify-between border-t border-zinc-800/80 pt-3">
+          <p className="text-[10px] font-black uppercase tracking-[.14em] text-zinc-600">Share your {status.heading.toLowerCase()} result</p>
+          <CompetitionShareCard
+            competition={status.sharePayload.competition}
+            cadence={status.sharePayload.cadence}
+            winnerName={shareName}
+            result={status.sharePayload.resultLabel}
+            isMine
+            mode="standing"
+            rank={status.sharePayload.rank}
+            finalized={status.sharePayload.finalized}
+            periodState={status.sharePayload.periodState}
+            tiedAtRank={status.athlete?.tiedAtRank ?? false}
+            compact
+          />
         </div>
       )}
     </article>

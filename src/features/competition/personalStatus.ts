@@ -53,7 +53,9 @@ export type AthleteOwnedStandingPayload = {
   rank: number;
   score: number;
   resultLabel: string;
+  periodState: CompetitionPeriodState;
   finalized: boolean;
+  tiedAtRank: boolean;
 };
 
 export type PersonalCompetitionStatus = {
@@ -335,7 +337,9 @@ export function buildPersonalCompetitionStatus(
         rank: athlete.rank,
         score: athlete.score,
         resultLabel: athlete.resultLabel,
+        periodState: period.status,
         finalized: period.status === "finalized",
+        tiedAtRank: athlete.tiedAtRank,
       },
     };
   } catch {
