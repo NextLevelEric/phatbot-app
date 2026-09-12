@@ -1,54 +1,67 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { buildCompetitionShareContent, canShareAthleteCompetition, type CompetitionShareMode } from "@/features/competition/share";
+import type { CompetitionCadence, CompetitionKind } from "@/features/competition/personalStatus";
+import { sharePngWithFallback } from "@/features/sharing/shareImage";
 
-type Competition = "beast" | "eager_beaver" | "cardio_bunny" | "step_king";
-type Cadence = "daily" | "weekly";
-type Mode = "award" | "standing" | "leader";
 type Props = {
-  competition: Competition;
-  cadence: Cadence;
+  competition: CompetitionKind;
+  cadence: CompetitionCadence;
   winnerName: string;
   result: string;
   isMine?: boolean;
-  mode?: Mode;
+  mode?: CompetitionShareMode;
   rank?: number | null;
   finalized?: boolean;
+  periodState?: "open" | "reconciling" | "finalized";
+  tiedAtRank?: boolean;
+  coWinner?: boolean | null;
   compact?: boolean;
 };
 
-const names:Record<Competition,string>={beast:"BEAST",eager_beaver:"EAGER BEAVER",cardio_bunny:"CARDIO BUNNY",step_king:"STEP KING"};
-const hardware:Record<Competition,string>={beast:"BEAST MEDALLION",eager_beaver:"GOLDEN LOG",cardio_bunny:"GOLDEN CARROT",step_king:"GOLDEN CROWN"};
-function escapeXml(value:string){return value.replace(/[<>&'\"]/g,char=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[char]??char));}
-function awardSvg(c:Competition){if(c==="beast")return `<g transform="translate(540 485)"><circle r="162" fill="#f5b800"/><circle r="138" fill="#ffd95a" stroke="#8b5a00" stroke-width="12"/><circle r="112" fill="#f4bd28" stroke="#fff0a6" stroke-width="5"/><text y="-18" text-anchor="middle" font-family="Arial Black,Arial" font-size="42" font-weight="900" fill="#090909">BEAST</text><text y="34" text-anchor="middle" font-family="Arial Black,Arial" font-size="30" font-weight="900" fill="#090909">OF THE ${"${CADENCE}"}</text></g>`;if(c==="step_king")return `<g transform="translate(540 455)" fill="#f6c928" stroke="#ffe88d" stroke-width="8"><path d="M-180 95 L-145 -125 L-45 5 L0 -165 L45 5 L145 -125 L180 95 Z"/><rect x="-172" y="95" width="344" height="70" rx="24"/></g>`;if(c==="cardio_bunny")return `<g transform="translate(540 460)"><path d="M0 -170 C85 -90 110 30 35 175 C15 215 -15 215 -35 175 C-110 30 -85 -90 0 -170 Z" fill="#f5bd22" stroke="#ffe98f" stroke-width="9"/></g>`;return `<g transform="translate(540 470)"><rect x="-170" y="-54" width="340" height="108" rx="54" fill="#d99b13" stroke="#ffe47a" stroke-width="9"/><rect x="-112" y="55" width="224" height="52" rx="18" fill="#f6c432"/></g>`;}
+function escapeXml(value: string) {
+  return value.replace(/[<>&'"]/g, char => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[char] ?? char));
+}
 
-export default function CompetitionShareCard({competition,cadence,winnerName,result,isMine=false,mode="award",rank=null,finalized=false,compact=false}:Props){
-  const[message,setMessage]=useState("");
-  const svg=useMemo(()=>{
-    const period=cadence==="weekly"?"WEEK":"DAY";
-    const art=awardSvg(competition).replace("${CADENCE}",period);
-    const eyebrow=mode==="standing"?(cadence==="weekly"?"MY WEEKLY STANDING":"MY DAILY STANDING"):mode==="leader"?(finalized?"OFFICIAL WINNER":"LEADING RIGHT NOW"):(cadence==="weekly"?"WEEKLY CHAMPION":"DAILY CHAMPION");
-    const main=mode==="standing"?(rank?`#${rank} ${names[competition]}`:`${names[competition]} STANDING`):names[competition];
-    const sub=mode==="standing"?(finalized?"FINAL RESULT":"LIVE · SUBJECT TO CHANGE"):mode==="leader"?(finalized?hardware[competition]:"CURRENT LEADER"):hardware[competition];
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><rect width="1080" height="1350" fill="#050505"/><text x="80" y="105" font-family="Arial Black,Arial" font-size="30" font-weight="900" letter-spacing="8" fill="#ff0032">PHATBOT COMPETE</text><text x="80" y="170" font-family="Arial,Helvetica" font-size="25" font-weight="700" letter-spacing="5" fill="#777">${eyebrow}</text>${art}<text x="540" y="760" text-anchor="middle" font-family="Arial Black,Arial" font-size="64" font-weight="900" fill="#fff">${escapeXml(main)}</text><text x="540" y="828" text-anchor="middle" font-family="Arial Black,Arial" font-size="30" font-weight="900" fill="#f7c623">${escapeXml(sub)}</text><text x="540" y="965" text-anchor="middle" font-family="Arial Black,Arial" font-size="62" font-weight="900" fill="#fff">${escapeXml(winnerName)}</text><text x="540" y="1032" text-anchor="middle" font-family="Arial,Helvetica" font-size="36" font-weight="800" fill="#f7c623">${escapeXml(result)}</text><text x="540" y="1184" text-anchor="middle" font-family="Arial Black,Arial" font-size="28" font-weight="900" fill="#fff">TRAIN. TRACK. IMPROVE. COMPETE.</text><text x="540" y="1242" text-anchor="middle" font-family="Arial,Helvetica" font-size="24" font-weight="700" fill="#777">Powered by PHATBOT</text></svg>`;
-  },[competition,cadence,winnerName,result,mode,rank,finalized]);
+function awardSvg(competition: CompetitionKind) {
+  if (competition === "beast") return `<g transform="translate(540 485)"><circle r="162" fill="#f5b800"/><circle r="138" fill="#ffd95a" stroke="#8b5a00" stroke-width="12"/><circle r="112" fill="#f4bd28" stroke="#fff0a6" stroke-width="5"/><text y="-18" text-anchor="middle" font-family="Arial Black,Arial" font-size="42" font-weight="900" fill="#090909">BEAST</text><text y="34" text-anchor="middle" font-family="Arial Black,Arial" font-size="30" font-weight="900" fill="#090909">PHATBOT</text></g>`;
+  if (competition === "step_king") return `<g transform="translate(540 455)" fill="#f6c928" stroke="#ffe88d" stroke-width="8"><path d="M-180 95 L-145 -125 L-45 5 L0 -165 L45 5 L145 -125 L180 95 Z"/><rect x="-172" y="95" width="344" height="70" rx="24"/></g>`;
+  if (competition === "cardio_bunny") return `<g transform="translate(540 460)"><path d="M0 -170 C85 -90 110 30 35 175 C15 215 -15 215 -35 175 C-110 30 -85 -90 0 -170 Z" fill="#f5bd22" stroke="#ffe98f" stroke-width="9"/></g>`;
+  return `<g transform="translate(540 470)"><path d="M-180 -64 H112 C150 -64 180 -35 180 0 C180 35 150 64 112 64 H-180 Z" fill="#d99b13" stroke="#ffe47a" stroke-width="9"/><ellipse cx="-180" cy="0" rx="48" ry="64" fill="#f6c432" stroke="#ffe995" stroke-width="8"/><ellipse cx="-180" cy="0" rx="28" ry="42" fill="none" stroke="#9b650d" stroke-width="7"/><path d="M-85 -62 Q-48 -110 -12 -78 L-44 -40" fill="#c5820e" stroke="#ffe47a" stroke-width="7"/><path d="M-80 -22 H104 M-72 20 H120" stroke="#9b650d" stroke-width="8" stroke-linecap="round"/></g>`;
+}
 
-  async function share(){
-    try{
-      const image=new Image(),url=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml;charset=utf-8"}));
-      await new Promise<void>((res,rej)=>{image.onload=()=>res();image.onerror=rej;image.src=url});
-      const canvas=document.createElement("canvas");canvas.width=1080;canvas.height=1350;
-      const ctx=canvas.getContext("2d");if(!ctx)throw new Error("No canvas context");
-      ctx.drawImage(image,0,0);URL.revokeObjectURL(url);
-      const blob=await new Promise<Blob>((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error("Could not render share card")),"image/png",1));
-      const fileName=`phatbot-${competition}-${cadence}-${mode}.png`,file=new File([blob],fileName,{type:"image/png"});
-      if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
-        await navigator.share({files:[file],title:"PHATBOT Compete",text:mode==="standing"?`My ${names[competition]} standing in PHATBOT.`:`${winnerName} · ${names[competition]} · ${result}`});
-        setMessage("Shared");return;
+export default function CompetitionShareCard({ competition, cadence, winnerName, result, isMine = false, mode = "award", rank = null, finalized = false, periodState, tiedAtRank = false, coWinner = null, compact = false }: Props) {
+  const [message, setMessage] = useState("");
+  const shareRank = rank ?? (mode === "award" ? 1 : null);
+  const allowed = canShareAthleteCompetition({ isMine, rank: shareRank });
+  const content = useMemo(() => shareRank === null ? null : buildCompetitionShareContent({ competition, cadence, athleteName: winnerName, result, rank: shareRank, finalized, periodState, tiedAtRank, mode, coWinner }), [competition, cadence, winnerName, result, shareRank, finalized, periodState, tiedAtRank, mode, coWinner]);
+  const svg = useMemo(() => content ? `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><rect width="1080" height="1350" fill="#050505"/><text x="80" y="105" font-family="Arial Black,Arial" font-size="30" font-weight="900" letter-spacing="8" fill="#ff0032">PHATBOT COMPETE</text><text x="80" y="170" font-family="Arial,Helvetica" font-size="25" font-weight="700" letter-spacing="5" fill="#777">${escapeXml(content.heading)}</text>${awardSvg(competition)}<text x="540" y="760" text-anchor="middle" font-family="Arial Black,Arial" font-size="58" font-weight="900" fill="#fff">${escapeXml(content.hero)}</text><text x="540" y="828" text-anchor="middle" font-family="Arial Black,Arial" font-size="30" font-weight="900" fill="#f7c623">${escapeXml(content.status)}</text><text x="540" y="930" text-anchor="middle" font-family="Arial Black,Arial" font-size="58" font-weight="900" fill="#fff">${escapeXml(content.result)}</text><text x="540" y="1015" text-anchor="middle" font-family="Arial,Helvetica" font-size="38" font-weight="800" fill="#f7c623">${escapeXml(content.athleteName)}</text><text x="540" y="1075" text-anchor="middle" font-family="Arial,Helvetica" font-size="25" font-weight="700" fill="#777">${escapeXml(content.note)}</text><text x="540" y="1184" text-anchor="middle" font-family="Arial Black,Arial" font-size="28" font-weight="900" fill="#fff">TRAIN. TRACK. IMPROVE. COMPETE.</text><text x="540" y="1242" text-anchor="middle" font-family="Arial,Helvetica" font-size="24" font-weight="700" fill="#777">Powered by PHATBOT</text></svg>` : "", [content, competition]);
+
+  async function share() {
+    if (!content) return;
+    try {
+      const image = new Image();
+      const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+      try {
+        await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = reject; image.src = url; });
+        const canvas = document.createElement("canvas");
+        canvas.width = 1080;
+        canvas.height = 1350;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("No canvas context");
+        context.drawImage(image, 0, 0);
+        const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("Could not render share card")), "image/png", 1));
+        const transport = await sharePngWithFallback(blob, { fileName: content.fileName, title: "PHATBOT Compete", text: content.shareText });
+        setMessage(transport === "download" ? "Saved image" : "Shared");
+      } finally {
+        URL.revokeObjectURL(url);
       }
-      const href=URL.createObjectURL(blob),a=document.createElement("a");a.href=href;a.download=fileName;a.style.display="none";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(href),3000);setMessage("Saved image");
-    }catch(e){if((e as Error)?.name!=="AbortError")setMessage("Try again");}
+    } catch (error) {
+      if ((error as Error)?.name !== "AbortError") setMessage("Try again");
+    }
   }
 
-  return <div className={`${compact?"mt-3":"mt-5"} flex flex-col items-center justify-center gap-2`}><button type="button" onClick={share} aria-label={isMine?"Share my PHATBOT competition card":"Share PHATBOT competition card"} title={isMine?"Share my PHATBOT competition card":"Share PHATBOT competition card"} className={`${compact?"h-9 w-9":"h-11 w-11"} grid place-items-center rounded-full border border-yellow-500/40 bg-black/85 text-yellow-300 shadow-lg backdrop-blur hover:border-yellow-400 hover:text-white`}><svg viewBox="0 0 24 24" width={compact?16:19} height={compact?16:19} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.7 6.8-4"/><path d="m8.6 13.3 6.8 4"/></svg></button>{message&&<span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">{message}</span>}</div>;
+  if (!allowed || !content) return null;
+  return <div className={`${compact ? "mt-3" : "mt-5"} flex flex-col items-center justify-center gap-2`}><button type="button" onClick={share} aria-label="Share my PHATBOT competition card" title="Share my PHATBOT competition card" className={`${compact ? "h-9 w-9" : "h-11 w-11"} grid place-items-center rounded-full border border-yellow-500/40 bg-black/85 text-yellow-300 shadow-lg backdrop-blur hover:border-yellow-400 hover:text-white`}><svg viewBox="0 0 24 24" width={compact ? 16 : 19} height={compact ? 16 : 19} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.7 6.8-4"/><path d="m8.6 13.3 6.8 4"/></svg></button>{message && <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">{message}</span>}</div>;
 }

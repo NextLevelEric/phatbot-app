@@ -132,6 +132,7 @@ describe("personal competition status", () => {
     expect(status.rankedAthleteCount).toBe(2);
     expect(status.athlete).toBeNull();
     expect(status.gapCopy).toBe("Complete an eligible workout to enter today's standings.");
+    expect(status.sharePayload).toBeNull();
   });
 
   it("marks finalized standings and produces a finalized athlete-owned payload", () => {
@@ -146,7 +147,9 @@ describe("personal competition status", () => {
       cadence: "weekly",
       rank: 1,
       score: 8.4,
+      periodState: "finalized",
       finalized: true,
+      tiedAtRank: false,
     });
   });
 
@@ -161,6 +164,7 @@ describe("personal competition status", () => {
     expect(status.athlete).toMatchObject({ rank: 2, tiedAtRank: true });
     expect(status.rankDisplay).toBe("Finished tied for #2");
     expect(status.positionCopy).toBe("You finished tied for #2 among 4 ranked athletes.");
+    expect(status.sharePayload?.tiedAtRank).toBe(true);
   });
 
   it("returns a safe query-error state without accepting a raw backend message", () => {

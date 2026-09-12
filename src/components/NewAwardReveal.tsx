@@ -1,11 +1,130 @@
 "use client";
 
-import { useEffect,useState } from "react";
+import { useEffect, useState } from "react";
 import CompetitionShareCard from "@/components/CompetitionShareCard";
+import { resolveLeaderboardIdentity, type LeaderboardIdentityMode } from "@/features/competition/share";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
-type Competition="beast"|"eager_beaver"|"cardio_bunny"|"step_king"; type Cadence="daily"|"weekly"; type Award={id:string;period_id:string;competition:Competition;cadence:Cadence;result:string|null;score:number|null};
-type AwardRow={id:string;period_id:string;award_key:string;awarded_at:string}; type RevealRow={award_id:string};
-const hardware:Record<Competition,string>={beast:"Beast Medallion",eager_beaver:"Golden Log",cardio_bunny:"Golden Carrot",step_king:"Golden Crown"};
-function fmt(k:Competition,s:number){if(k==="step_king")return `${Math.round(s).toLocaleString()} steps`;if(k==="eager_beaver")return `${s.toFixed(1)} Eager`;return `${s>=0?"+":""}${s.toFixed(1)}%`}
-function artifact(k:Competition,weekly=false){if(k==="beast")return <div className={`${weekly?"h-40 w-40":"h-36 w-36"} grid place-items-center rounded-full border-[7px] border-yellow-100 bg-gradient-to-br from-white via-yellow-300 to-amber-700 shadow-[0_0_70px_rgba(250,204,21,.45)]`}><span className="text-center text-sm font-black leading-4 text-black">BEAST<br/>OF THE<br/>{weekly?"WEEK":"DAY"}</span></div>;if(k==="cardio_bunny")return <div className="text-9xl drop-shadow-[0_0_40px_rgba(250,204,21,.5)]">🥕</div>;if(k==="step_king")return <div className="text-[10rem] leading-none text-yellow-300 drop-shadow-[0_0_40px_rgba(250,204,21,.5)]">♛</div>;return <div className="relative h-32 w-44 drop-shadow-[0_0_40px_rgba(250,204,21,.5)]"><div className="absolute top-3 h-16 w-44 rounded-full border-4 border-yellow-100 bg-gradient-to-b from-yellow-100 to-amber-600"/><div className="absolute bottom-2 left-6 h-8 w-32 rounded-t bg-yellow-400"/></div>}
-export default function NewAwardReveal(){const[award,setAward]=useState<Award|null>(null),[athleteName,setAthleteName]=useState("PHATBOT Athlete"),[stage,setStage]=useState(0),[userId,setUserId]=useState<string|null>(null);useEffect(()=>{async function load(){const s=createSupabaseBrowserClient(),{data:{user}}=await s.auth.getUser();if(!user)return;setUserId(user.id);const{data:profile}=await s.from("profiles").select("display_name").eq("id",user.id).maybeSingle();if(profile?.display_name)setAthleteName(profile.display_name);const{data:rawData}=await s.from("competition_awards").select("id,period_id,award_key,awarded_at").eq("athlete_user_id",user.id).order("awarded_at",{ascending:false}).limit(20);const raw=(rawData??[]) as AwardRow[];const awardIds=raw.map(a=>a.id);let seenRows:RevealRow[]=[];if(awardIds.length){const revealTable=(s as any).from("competition_award_reveals");const{data}=await revealTable.select("award_id").eq("athlete_user_id",user.id).in("award_id",awardIds);seenRows=(data??[]) as RevealRow[]}const seenIds=new Set(seenRows.map(r=>r.award_id));for(const a of raw){if(seenIds.has(a.id))continue;const{data:p}=await s.from("competition_periods").select("competition,cadence,status").eq("id",a.period_id).maybeSingle();if(!p||p.status!=="finalized")continue;const{data:e}=await s.from("competition_entries").select("score,result_label").eq("period_id",a.period_id).eq("athlete_user_id",user.id).maybeSingle();setAward({id:a.id,period_id:a.period_id,competition:p.competition as Competition,cadence:p.cadence as Cadence,result:e?.result_label??null,score:e?.score??null});break}}void load()},[]);useEffect(()=>{if(!award)return;setStage(0);const a=setTimeout(()=>setStage(1),250),b=setTimeout(()=>setStage(2),850);return()=>{clearTimeout(a);clearTimeout(b)}},[award]);if(!award)return null;const result=award.result??(award.score!=null?fmt(award.competition,award.score):"Champion");async function close(){const current=award;if(!current)return;setAward(null);try{if(userId){const s=createSupabaseBrowserClient();const revealTable=(s as any).from("competition_award_reveals");const{error}=await revealTable.upsert({award_id:current.id,athlete_user_id:userId},{onConflict:"award_id"});if(error)throw error}}catch{try{localStorage.setItem(`phatbot-award-revealed:${current.id}`,"1")}catch{}}}return <div className="phat-force-dark fixed inset-0 z-[100] flex items-center justify-center bg-black/95 px-5 backdrop-blur-md"><div className="absolute inset-0 overflow-hidden pointer-events-none"><div className="absolute left-[10%] top-[12%] text-3xl text-yellow-300/50">✦</div><div className="absolute right-[12%] top-[22%] text-xl text-yellow-300/40">✦</div><div className="absolute bottom-[18%] left-[18%] text-2xl text-yellow-300/30">✦</div><div className="absolute bottom-[28%] right-[15%] text-4xl text-yellow-300/20">✦</div></div><div className={`relative w-full max-w-md text-center transition-all duration-700 ${stage?"translate-y-0 opacity-100":"translate-y-8 opacity-0"}`}><p className="text-xs font-black uppercase tracking-[.34em] text-[#ff0032]">PHATBOT COMPETE</p><p className="mt-4 text-sm font-black uppercase tracking-[.24em] text-yellow-400">{award.cadence==="weekly"?"Legendary Hardware":"Hardware Acquired"}</p><div className={`mt-8 flex justify-center transition-all duration-700 ${stage>=2?"scale-100 opacity-100":"scale-75 opacity-20"}`}>{artifact(award.competition,award.cadence==="weekly")}</div><h1 className="mt-8 text-4xl font-black tracking-tight text-white">YOU WON.</h1><h2 className="mt-2 text-3xl font-black text-yellow-300">{hardware[award.competition]}</h2><p className="mt-5 text-2xl font-black text-white">{result}</p><p className="mt-2 text-sm text-zinc-500">Finalized. Locked. Added to your Trophy Cabinet.</p><div className="mt-6 flex justify-center"><CompetitionShareCard competition={award.competition} cadence={award.cadence} winnerName={athleteName} result={result} isMine/></div><button type="button" onClick={()=>void close()} className="mt-7 w-full rounded-2xl bg-white px-5 py-4 text-sm font-black text-black">CLAIM HARDWARE →</button><button type="button" onClick={()=>void close()} className="mt-3 px-5 py-2 text-xs font-bold text-zinc-600">Continue to the arena</button></div></div>}
+
+type Competition = "beast" | "eager_beaver" | "cardio_bunny" | "step_king";
+type Cadence = "daily" | "weekly";
+type Award = { id: string; period_id: string; competition: Competition; cadence: Cadence; result: string | null; score: number | null; coWinner: boolean | null };
+type AwardRow = { id: string; period_id: string; award_key: string; awarded_at: string };
+type RevealRow = { award_id: string };
+type LeaderboardRow = { rank: number | null };
+
+const hardware: Record<Competition, string> = { beast: "Beast Medallion", eager_beaver: "Golden Log", cardio_bunny: "Golden Carrot", step_king: "Golden Crown" };
+
+function fmt(competition: Competition, score: number) {
+  if (competition === "step_king") return `${Math.round(score).toLocaleString()} steps`;
+  if (competition === "eager_beaver") return `${score.toFixed(1)} Eager`;
+  return `${score >= 0 ? "+" : ""}${score.toFixed(1)}%`;
+}
+
+function artifact(competition: Competition, weekly = false) {
+  if (competition === "beast") return <div className={`${weekly ? "h-40 w-40" : "h-36 w-36"} grid place-items-center rounded-full border-[7px] border-yellow-100 bg-gradient-to-br from-white via-yellow-300 to-amber-700 shadow-[0_0_70px_rgba(250,204,21,.45)]`}><span className="text-center text-sm font-black leading-4 text-black">BEAST<br/>OF THE<br/>{weekly ? "WEEK" : "DAY"}</span></div>;
+  if (competition === "cardio_bunny") return <div className="text-9xl drop-shadow-[0_0_40px_rgba(250,204,21,.5)]">🥕</div>;
+  if (competition === "step_king") return <div className="text-[10rem] leading-none text-yellow-300 drop-shadow-[0_0_40px_rgba(250,204,21,.5)]">♛</div>;
+  return <div className="relative h-32 w-48 drop-shadow-[0_0_40px_rgba(250,204,21,.5)]"><div className="absolute left-5 top-8 h-20 w-36 rounded-[45%] border-4 border-yellow-100 bg-gradient-to-b from-yellow-100 via-yellow-400 to-amber-700"/><div className="absolute left-0 top-8 h-20 w-14 rounded-[50%] border-4 border-yellow-100 bg-yellow-400"><div className="mx-auto mt-3 h-12 w-8 rounded-[50%] border-4 border-amber-700"/></div><div className="absolute right-8 top-14 h-1.5 w-20 rounded bg-amber-800/70"/><div className="absolute right-5 top-[4.5rem] h-1.5 w-24 rounded bg-amber-800/70"/><div className="absolute left-24 top-1 h-12 w-8 -rotate-[38deg] rounded-t-full border-4 border-yellow-100 bg-amber-600"/></div>;
+}
+
+export default function NewAwardReveal() {
+  const [award, setAward] = useState<Award | null>(null);
+  const [athleteName, setAthleteName] = useState("PHATBOT Athlete");
+  const [stage, setStage] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createSupabaseBrowserClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setUserId(user.id);
+
+      const [{ data: athleteProfile }, { data: profile }, { data: rawData }] = await Promise.all([
+        supabase.from("athlete_profiles").select("leaderboard_identity_mode,leaderboard_name").eq("user_id", user.id).maybeSingle(),
+        supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle(),
+        supabase.from("competition_awards").select("id,period_id,award_key,awarded_at").eq("athlete_user_id", user.id).order("awarded_at", { ascending: false }).limit(20),
+      ]);
+      setAthleteName(resolveLeaderboardIdentity({
+        mode: athleteProfile?.leaderboard_identity_mode as LeaderboardIdentityMode | null | undefined,
+        customName: athleteProfile?.leaderboard_name,
+        profileName: profile?.display_name,
+      }));
+
+      const raw = (rawData ?? []) as AwardRow[];
+      const awardIds = raw.map(item => item.id);
+      let seenRows: RevealRow[] = [];
+      if (awardIds.length) {
+        const revealTable = (supabase as any).from("competition_award_reveals");
+        const { data } = await revealTable.select("award_id").eq("athlete_user_id", user.id).in("award_id", awardIds);
+        seenRows = (data ?? []) as RevealRow[];
+      }
+      const seenIds = new Set(seenRows.map(row => row.award_id));
+
+      for (const item of raw) {
+        if (seenIds.has(item.id)) continue;
+        const { data: period } = await supabase.from("competition_periods").select("competition,cadence,status").eq("id", item.period_id).maybeSingle();
+        if (!period || period.status !== "finalized") continue;
+        const [{ data: entry }, { data: board, error: boardError }] = await Promise.all([
+          supabase.from("competition_entries").select("score,result_label").eq("period_id", item.period_id).eq("athlete_user_id", user.id).maybeSingle(),
+          supabase.rpc("competition_leaderboard", { p_period_id: item.period_id }),
+        ]);
+        setAward({
+          id: item.id,
+          period_id: item.period_id,
+          competition: period.competition as Competition,
+          cadence: period.cadence as Cadence,
+          result: entry?.result_label ?? null,
+          score: entry?.score ?? null,
+          coWinner: boardError ? null : ((board ?? []) as LeaderboardRow[]).filter(row => row.rank === 1).length > 1,
+        });
+        break;
+      }
+    }
+    void load();
+  }, []);
+
+  useEffect(() => {
+    if (!award) return;
+    setStage(0);
+    const appear = setTimeout(() => setStage(1), 250);
+    const reveal = setTimeout(() => setStage(2), 850);
+    return () => { clearTimeout(appear); clearTimeout(reveal); };
+  }, [award]);
+
+  if (!award) return null;
+  const result = award.result ?? (award.score != null ? fmt(award.competition, award.score) : "Champion");
+
+  async function close() {
+    const current = award;
+    if (!current) return;
+    setAward(null);
+    try {
+      if (userId) {
+        const supabase = createSupabaseBrowserClient();
+        const revealTable = (supabase as any).from("competition_award_reveals");
+        const { error } = await revealTable.upsert({ award_id: current.id, athlete_user_id: userId }, { onConflict: "award_id" });
+        if (error) throw error;
+      }
+    } catch {
+      try { localStorage.setItem(`phatbot-award-revealed:${current.id}`, "1"); } catch {}
+    }
+  }
+
+  return <div className="phat-force-dark fixed inset-0 z-[100] flex items-center justify-center bg-black/95 px-5 backdrop-blur-md">
+    <div className="pointer-events-none absolute inset-0 overflow-hidden"><div className="absolute left-[10%] top-[12%] text-3xl text-yellow-300/50">✦</div><div className="absolute right-[12%] top-[22%] text-xl text-yellow-300/40">✦</div><div className="absolute bottom-[18%] left-[18%] text-2xl text-yellow-300/30">✦</div><div className="absolute bottom-[28%] right-[15%] text-4xl text-yellow-300/20">✦</div></div>
+    <div className={`relative w-full max-w-md text-center transition-all duration-700 ${stage ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}>
+      <p className="text-xs font-black uppercase tracking-[.34em] text-[#ff0032]">PHATBOT COMPETE</p>
+      <p className="mt-4 text-sm font-black uppercase tracking-[.24em] text-yellow-400">{award.cadence === "weekly" ? "Legendary Hardware" : "Hardware Acquired"}</p>
+      <div className={`mt-8 flex justify-center transition-all duration-700 ${stage >= 2 ? "scale-100 opacity-100" : "scale-75 opacity-20"}`}>{artifact(award.competition, award.cadence === "weekly")}</div>
+      <h1 className="mt-8 text-4xl font-black tracking-tight text-white">YOU WON.</h1>
+      <h2 className="mt-2 text-3xl font-black text-yellow-300">{hardware[award.competition]}</h2>
+      {award.coWinner && <p className="mt-2 text-xs font-black uppercase tracking-[.18em] text-yellow-500">Shared first · Co-champion</p>}
+      <p className="mt-5 text-2xl font-black text-white">{result}</p>
+      <p className="mt-2 text-sm text-zinc-500">Finalized. Locked. Added to your Trophy Cabinet.</p>
+      <div className="mt-6"><CompetitionShareCard competition={award.competition} cadence={award.cadence} winnerName={athleteName} result={result} isMine mode="award" rank={1} finalized coWinner={award.coWinner}/></div>
+      <button type="button" onClick={() => void close()} className="mt-7 w-full rounded-2xl bg-white px-5 py-4 text-sm font-black text-black">CLAIM HARDWARE →</button>
+      <button type="button" onClick={() => void close()} className="mt-3 px-5 py-2 text-xs font-bold text-zinc-600">Continue to the arena</button>
+    </div>
+  </div>;
+}

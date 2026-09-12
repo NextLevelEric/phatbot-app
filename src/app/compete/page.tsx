@@ -15,10 +15,11 @@ import {
   type CompetitionPeriodRecord as Period,
   type CompetitionStatusQuery,
 } from "@/features/competition/personalStatus";
+import { resolveLeaderboardIdentity } from "@/features/competition/share";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 type Award = { id: string; period_id: string; award_key: string; awarded_at: string };
-type AwardDetail = Award & { competition: Competition; cadence: Cadence; period_start: string; result: string | null; score: number | null };
+type AwardDetail = Award & { competition: Competition; cadence: Cadence; period_start: string; result: string | null; score: number | null; coWinner: boolean | null };
 
 const labels: Record<Competition, string> = { beast: "Beast", eager_beaver: "Eager Beaver", cardio_bunny: "Cardio Bunny", step_king: "Step King" };
 const hardware: Record<Competition, string> = { beast: "Beast Medallion", eager_beaver: "Golden Log", cardio_bunny: "Golden Carrot", step_king: "Golden Crown" };
@@ -40,7 +41,7 @@ function artifact(competition: Competition, weekly = false) {
   if (competition === "beast") return <div className={`${weekly ? "h-28 w-28" : "h-24 w-24"} grid place-items-center rounded-full border-[5px] border-yellow-200 bg-gradient-to-br from-yellow-50 via-yellow-400 to-amber-700 shadow-[0_0_35px_rgba(250,204,21,.28)]`}><span className="text-center text-[11px] font-black leading-3 text-black">BEAST<br />OF THE<br />{weekly ? "WEEK" : "DAY"}</span></div>;
   if (competition === "cardio_bunny") return <div className="text-7xl drop-shadow-[0_0_18px_rgba(250,204,21,.35)]">🥕</div>;
   if (competition === "step_king") return <div className="text-8xl text-yellow-400 drop-shadow-[0_0_18px_rgba(250,204,21,.35)]">♛</div>;
-  return <div className="relative h-20 w-28 drop-shadow-[0_0_18px_rgba(250,204,21,.3)]"><div className="absolute top-2 h-11 w-28 rounded-full border-2 border-yellow-200 bg-gradient-to-b from-yellow-200 to-amber-600" /><div className="absolute bottom-0 left-4 h-5 w-20 rounded-t bg-yellow-500" /></div>;
+  return <div className="relative h-20 w-32 drop-shadow-[0_0_18px_rgba(250,204,21,.3)]"><div className="absolute left-3 top-4 h-12 w-24 rounded-[45%] border-2 border-yellow-200 bg-gradient-to-b from-yellow-200 via-yellow-500 to-amber-700" /><div className="absolute left-1 top-4 h-12 w-9 rounded-[50%] border-2 border-yellow-100 bg-yellow-400"><div className="mx-auto mt-2 h-7 w-5 rounded-[50%] border-2 border-amber-700" /></div><div className="absolute right-6 top-7 h-1 w-12 rounded bg-amber-800/70" /><div className="absolute right-4 top-10 h-1 w-14 rounded bg-amber-800/70" /><div className="absolute left-16 top-1 h-8 w-5 -rotate-[38deg] rounded-t-full border-2 border-yellow-200 bg-amber-600" /></div>;
 }
 
 function podium(rank: number | null) { return rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank ? `#${rank}` : "—"; }
@@ -61,6 +62,7 @@ export default function CompetePage() {
   const [awards, setAwards] = useState<AwardDetail[]>([]);
   const [cabinetOpen, setCabinetOpen] = useState(false);
   const [selectedAward, setSelectedAward] = useState<AwardDetail | null>(null);
+  const [athleteShareName, setAthleteShareName] = useState("PHATBOT Athlete");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -69,6 +71,16 @@ export default function CompetePage() {
         const supabase = createSupabaseBrowserClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { window.location.href = "/auth"; return; }
+
+        const [{ data: athleteProfile }, { data: profile }] = await Promise.all([
+          supabase.from("athlete_profiles").select("leaderboard_identity_mode,leaderboard_name").eq("user_id", user.id).maybeSingle(),
+          supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle(),
+        ]);
+        setAthleteShareName(resolveLeaderboardIdentity({
+          mode: athleteProfile?.leaderboard_identity_mode,
+          customName: athleteProfile?.leaderboard_name,
+          profileName: profile?.display_name,
+        }));
 
         const { data: periodData, error: periodError } = await supabase.from("competition_periods")
           .select("id,competition,cadence,period_start,period_end,reconcile_at,status")
@@ -115,6 +127,7 @@ export default function CompetePage() {
               period_start: awardPeriod?.period_start ?? award.awarded_at,
               result: entry?.result_label ?? null,
               score: entry?.score ?? null,
+              coWinner: null,
             };
           });
         }
@@ -140,6 +153,19 @@ export default function CompetePage() {
     return { state: "success", period: statusPeriod, rows: boards[key] ?? [] };
   }
 
+  async function openAward(award: AwardDetail) {
+    setSelectedAward({ ...award, coWinner: null });
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase.rpc("competition_leaderboard", { p_period_id: award.period_id });
+      if (error) return;
+      const coWinner = ((data ?? []) as Row[]).filter(row => row.rank === 1).length > 1;
+      setSelectedAward(current => current?.id === award.id ? { ...current, coWinner } : current);
+    } catch {
+      // Keep the share copy generically truthful if tie details cannot be loaded.
+    }
+  }
+
   const beastStatus = buildBeastStatusPair({ daily: statusQuery("daily"), weekly: statusQuery("weekly") });
   const period = periods.find(item => item.competition === competition && item.cadence === cadence) ?? null;
   const boardKey = `${competition}:${cadence}`;
@@ -148,6 +174,8 @@ export default function CompetePage() {
   const aroundYouRows = selectAroundYouRows(board);
   const boardFailed = !!boardErrors[boardKey] || periodQueryFailed;
   const leader = board.find(row => row.rank === 1) ?? board[0] ?? null;
+  const athleteRow = board.find(row => row.is_me) ?? null;
+  const currentCoWinner = board.filter(row => row.rank === 1).length > 1;
   const wonCurrent = !!period && awards.some(award => award.period_id === period.id);
   const counts = order.map(key => ({ key, count: awards.filter(award => award.competition === key).length }));
 
@@ -162,8 +190,8 @@ export default function CompetePage() {
       <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-500">Athlete first</p>
       <h2 id="my-competition-status" className="mt-1 text-2xl font-black">My Competition Status</h2>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <PersonalCompetitionStatusCard status={beastStatus.today} />
-        <PersonalCompetitionStatusCard status={beastStatus.thisWeek} />
+        <PersonalCompetitionStatusCard status={beastStatus.today} shareName={athleteShareName} />
+        <PersonalCompetitionStatusCard status={beastStatus.thisWeek} shareName={athleteShareName} />
       </div>
     </section>
 
@@ -205,17 +233,15 @@ export default function CompetePage() {
     </section>
 
     {leader && <section className="rounded-3xl border border-yellow-500/35 bg-gradient-to-br from-yellow-500/10 via-zinc-950 to-black p-6 text-center"><p className="text-xs font-black uppercase tracking-[.22em] text-yellow-400">{period?.status === "finalized" ? "Official Winner" : "Current Leader"}</p><div className="mt-5 flex justify-center">{artifact(competition, cadence === "weekly")}</div><h2 className="mt-4 text-3xl font-black">{leader.display_name}</h2><p className="mt-2 text-lg font-black text-yellow-400">{leader.result_label ?? fmt(competition, leader.score)}</p><p className="mt-2 text-sm text-zinc-500">{period?.status === "finalized" ? "The result is locked. Hardware awarded." : "Live result. The board can still move."}</p></section>}
-    {leader && period?.status === "finalized" && <CompetitionShareCard competition={competition} cadence={cadence} winnerName={leader.display_name} result={leader.result_label ?? fmt(competition, leader.score)} isMine={leader.is_me} />}
-
-    {wonCurrent && <section className="relative overflow-hidden rounded-3xl border border-yellow-300/60 bg-gradient-to-br from-yellow-400/25 via-zinc-950 to-black p-6 text-center shadow-[0_0_35px_rgba(250,204,21,.08)]"><div className="absolute right-4 top-3 text-yellow-200/20">✦ ✦ ✦</div><p className="text-xs font-black uppercase tracking-[.24em] text-yellow-300">Hardware Acquired</p><div className="mt-5 flex justify-center">{artifact(competition, cadence === "weekly")}</div><h2 className="mt-5 text-3xl font-black">You won {hardware[competition]}.</h2><p className="mt-2 text-xs font-black uppercase tracking-[.18em] text-yellow-500">{rarity(cadence)} · {cadence === "weekly" ? "Weekly Champion" : "Daily Champion"}</p></section>}
+    {wonCurrent && athleteRow?.rank === 1 && <section className="relative overflow-hidden rounded-3xl border border-yellow-300/60 bg-gradient-to-br from-yellow-400/25 via-zinc-950 to-black p-6 text-center shadow-[0_0_35px_rgba(250,204,21,.08)]"><div className="absolute right-4 top-3 text-yellow-200/20">✦ ✦ ✦</div><p className="text-xs font-black uppercase tracking-[.24em] text-yellow-300">Hardware Acquired</p><div className="mt-5 flex justify-center">{artifact(competition, cadence === "weekly")}</div><h2 className="mt-5 text-3xl font-black">You won {hardware[competition]}.</h2><p className="mt-2 text-xs font-black uppercase tracking-[.18em] text-yellow-500">{rarity(cadence)} · {currentCoWinner ? "Shared First" : cadence === "weekly" ? "Weekly Champion" : "Daily Champion"}</p><CompetitionShareCard competition={competition} cadence={cadence} winnerName={athleteShareName} result={athleteRow.result_label ?? fmt(competition, athleteRow.score)} isMine mode="award" rank={1} finalized coWinner={currentCoWinner} /></section>}
 
     <section className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
       <button type="button" onClick={() => setCabinetOpen(value => !value)} className="w-full text-left"><div className="flex items-end justify-between"><div><p className="text-xs font-black uppercase tracking-[.18em] text-yellow-500">Your Trophy Cabinet</p><h2 className="mt-1 text-3xl font-black">{awards.length} {awards.length === 1 ? "piece of hardware" : "pieces of hardware"}</h2><p className="mt-2 text-sm text-zinc-500">{cabinetOpen ? "Hide the collection" : "Open the cabinet →"}</p></div><span className="text-3xl">🏆</span></div></button>
       {awards.length > 0 && <div className="mt-5 grid grid-cols-4 gap-2">{counts.map(({ key, count }) => <div key={key} className="rounded-xl border border-zinc-800 bg-black px-2 py-3 text-center"><p className="text-lg font-black text-yellow-400">{count}</p><p className="mt-1 text-[9px] font-black uppercase text-zinc-600">{labels[key]}</p></div>)}</div>}
-      {cabinetOpen && (awards.length === 0 ? <p className="mt-5 text-sm leading-6 text-zinc-500">Empty cabinet. For now. Finalized wins will collect here automatically.</p> : <div className="mt-5 grid grid-cols-2 gap-3">{awards.map(award => <button key={award.id} type="button" onClick={() => setSelectedAward(award)} className={`relative overflow-hidden rounded-2xl border p-4 text-center ${award.cadence === "weekly" ? "border-yellow-200/60 bg-gradient-to-br from-yellow-400/15 via-black to-black" : "border-yellow-500/20 bg-black"}`}><div className="absolute right-2 top-2 rounded-full border border-yellow-500/25 bg-black/70 px-2 py-1 text-[8px] font-black tracking-[.14em] text-yellow-500">{rarity(award.cadence)}</div><div className="flex h-24 items-center justify-center scale-75">{artifact(award.competition, award.cadence === "weekly")}</div><p className="mt-1 text-sm font-black">{hardware[award.competition]}</p><p className="mt-1 text-[10px] font-black uppercase tracking-[.12em] text-zinc-600">{award.cadence === "weekly" ? "Weekly Champion" : "Daily Champion"}</p><p className="mt-2 text-xs font-bold text-yellow-500">{award.result ?? (award.score != null ? fmt(award.competition, award.score) : "WIN")}</p><p className="mt-1 text-[10px] text-zinc-700">Earned {awardDate(award.period_start)}</p></button>)}</div>)}
+      {cabinetOpen && (awards.length === 0 ? <p className="mt-5 text-sm leading-6 text-zinc-500">Empty cabinet. For now. Finalized wins will collect here automatically.</p> : <div className="mt-5 grid grid-cols-2 gap-3">{awards.map(award => <button key={award.id} type="button" onClick={() => void openAward(award)} className={`relative overflow-hidden rounded-2xl border p-4 text-center ${award.cadence === "weekly" ? "border-yellow-200/60 bg-gradient-to-br from-yellow-400/15 via-black to-black" : "border-yellow-500/20 bg-black"}`}><div className="absolute right-2 top-2 rounded-full border border-yellow-500/25 bg-black/70 px-2 py-1 text-[8px] font-black tracking-[.14em] text-yellow-500">{rarity(award.cadence)}</div><div className="flex h-24 items-center justify-center scale-75">{artifact(award.competition, award.cadence === "weekly")}</div><p className="mt-1 text-sm font-black">{hardware[award.competition]}</p><p className="mt-1 text-[10px] font-black uppercase tracking-[.12em] text-zinc-600">{award.cadence === "weekly" ? "Weekly Champion" : "Daily Champion"}</p><p className="mt-2 text-xs font-bold text-yellow-500">{award.result ?? (award.score != null ? fmt(award.competition, award.score) : "WIN")}</p><p className="mt-1 text-[10px] text-zinc-700">Earned {awardDate(award.period_start)}</p></button>)}</div>)}
     </section>
 
-    {selectedAward && <section className="relative overflow-hidden rounded-3xl border border-yellow-300/55 bg-gradient-to-br from-yellow-400/20 via-zinc-950 to-black p-6 text-center shadow-[0_0_40px_rgba(250,204,21,.08)]"><div className="absolute left-5 top-4 rounded-full border border-yellow-400/30 bg-black/60 px-3 py-1 text-[9px] font-black tracking-[.18em] text-yellow-400">{rarity(selectedAward.cadence)}</div><button type="button" onClick={() => setSelectedAward(null)} className="absolute right-4 top-4 rounded-full border border-zinc-700 px-3 py-1 text-sm text-zinc-400">×</button><p className="mt-8 text-xs font-black uppercase tracking-[.22em] text-yellow-400">Hardware Acquired</p><div className="mt-5 flex justify-center">{artifact(selectedAward.competition, selectedAward.cadence === "weekly")}</div><h2 className="mt-5 text-3xl font-black">{hardware[selectedAward.competition]}</h2><p className="mt-2 text-sm font-black uppercase tracking-[.14em] text-yellow-500">{selectedAward.cadence === "weekly" ? "Weekly Champion" : "Daily Champion"}</p><p className="mt-1 text-xs text-zinc-600">Earned {awardDate(selectedAward.period_start)}</p><p className="mt-4 text-2xl font-black">{selectedAward.result ?? (selectedAward.score != null ? fmt(selectedAward.competition, selectedAward.score) : "Hardware acquired")}</p><div className="mt-5"><CompetitionShareCard competition={selectedAward.competition} cadence={selectedAward.cadence} winnerName="PHATBOT Athlete" result={selectedAward.result ?? (selectedAward.score != null ? fmt(selectedAward.competition, selectedAward.score) : "Champion")} isMine /></div></section>}
+    {selectedAward && <section className="relative overflow-hidden rounded-3xl border border-yellow-300/55 bg-gradient-to-br from-yellow-400/20 via-zinc-950 to-black p-6 text-center shadow-[0_0_40px_rgba(250,204,21,.08)]"><div className="absolute left-5 top-4 rounded-full border border-yellow-400/30 bg-black/60 px-3 py-1 text-[9px] font-black tracking-[.18em] text-yellow-400">{rarity(selectedAward.cadence)}</div><button type="button" onClick={() => setSelectedAward(null)} className="absolute right-4 top-4 rounded-full border border-zinc-700 px-3 py-1 text-sm text-zinc-400">×</button><p className="mt-8 text-xs font-black uppercase tracking-[.22em] text-yellow-400">Hardware Acquired</p><div className="mt-5 flex justify-center">{artifact(selectedAward.competition, selectedAward.cadence === "weekly")}</div><h2 className="mt-5 text-3xl font-black">{hardware[selectedAward.competition]}</h2><p className="mt-2 text-sm font-black uppercase tracking-[.14em] text-yellow-500">{selectedAward.coWinner ? "Shared First" : selectedAward.cadence === "weekly" ? "Weekly Champion" : "Daily Champion"}</p><p className="mt-1 text-xs text-zinc-600">Earned {awardDate(selectedAward.period_start)}</p><p className="mt-4 text-2xl font-black">{selectedAward.result ?? (selectedAward.score != null ? fmt(selectedAward.competition, selectedAward.score) : "Hardware acquired")}</p><div className="mt-5"><CompetitionShareCard competition={selectedAward.competition} cadence={selectedAward.cadence} winnerName={athleteShareName} result={selectedAward.result ?? (selectedAward.score != null ? fmt(selectedAward.competition, selectedAward.score) : "Champion")} isMine mode="award" rank={1} finalized coWinner={selectedAward.coWinner} /></div></section>}
 
     <p className="pb-2 text-center text-[11px] text-zinc-700">Live boards are provisional until finalization. Tied leaders share first place and each earn the award.</p>
   </main>;
