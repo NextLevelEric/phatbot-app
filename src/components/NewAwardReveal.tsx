@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import CompetitionShareCard from "@/components/CompetitionShareCard";
+import CompetitionAwardArtwork from "@/components/CompetitionAwardArtwork";
 import { resolveLeaderboardIdentity, type LeaderboardIdentityMode } from "@/features/competition/share";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
@@ -18,13 +19,6 @@ function fmt(competition: Competition, score: number) {
   if (competition === "step_king") return `${Math.round(score).toLocaleString()} steps`;
   if (competition === "eager_beaver") return `${score.toFixed(1)} Eager`;
   return `${score >= 0 ? "+" : ""}${score.toFixed(1)}%`;
-}
-
-function artifact(competition: Competition, weekly = false) {
-  if (competition === "beast") return <div className={`${weekly ? "h-40 w-40" : "h-36 w-36"} grid place-items-center rounded-full border-[7px] border-yellow-100 bg-gradient-to-br from-white via-yellow-300 to-amber-700 shadow-[0_0_70px_rgba(250,204,21,.45)]`}><span className="text-center text-sm font-black leading-4 text-black">BEAST<br/>OF THE<br/>{weekly ? "WEEK" : "DAY"}</span></div>;
-  if (competition === "cardio_bunny") return <div className="text-9xl drop-shadow-[0_0_40px_rgba(250,204,21,.5)]">🥕</div>;
-  if (competition === "step_king") return <div className="text-[10rem] leading-none text-yellow-300 drop-shadow-[0_0_40px_rgba(250,204,21,.5)]">♛</div>;
-  return <div className="relative h-32 w-48 drop-shadow-[0_0_40px_rgba(250,204,21,.5)]"><div className="absolute left-5 top-8 h-20 w-36 rounded-[45%] border-4 border-yellow-100 bg-gradient-to-b from-yellow-100 via-yellow-400 to-amber-700"/><div className="absolute left-0 top-8 h-20 w-14 rounded-[50%] border-4 border-yellow-100 bg-yellow-400"><div className="mx-auto mt-3 h-12 w-8 rounded-[50%] border-4 border-amber-700"/></div><div className="absolute right-8 top-14 h-1.5 w-20 rounded bg-amber-800/70"/><div className="absolute right-5 top-[4.5rem] h-1.5 w-24 rounded bg-amber-800/70"/><div className="absolute left-24 top-1 h-12 w-8 -rotate-[38deg] rounded-t-full border-4 border-yellow-100 bg-amber-600"/></div>;
 }
 
 export default function NewAwardReveal() {
@@ -116,7 +110,7 @@ export default function NewAwardReveal() {
     <div className={`relative w-full max-w-md text-center transition-all duration-700 ${stage ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}>
       <p className="text-xs font-black uppercase tracking-[.34em] text-[#ff0032]">PHATBOT COMPETE</p>
       <p className="mt-4 text-sm font-black uppercase tracking-[.24em] text-yellow-400">{award.cadence === "weekly" ? "Legendary Hardware" : "Hardware Acquired"}</p>
-      <div className={`mt-8 flex justify-center transition-all duration-700 ${stage >= 2 ? "scale-100 opacity-100" : "scale-75 opacity-20"}`}>{artifact(award.competition, award.cadence === "weekly")}</div>
+      <div className={`mt-8 flex justify-center transition-all duration-700 ${stage >= 2 ? "scale-100 opacity-100" : "scale-75 opacity-20"}`}><CompetitionAwardArtwork competition={award.competition} className="h-52 w-full max-w-xs" /></div>
       <h1 className="mt-8 text-4xl font-black tracking-tight text-white">YOU WON.</h1>
       <h2 className="mt-2 text-3xl font-black text-yellow-300">{hardware[award.competition]}</h2>
       {award.coWinner && <p className="mt-2 text-xs font-black uppercase tracking-[.18em] text-yellow-500">Shared first · Co-champion</p>}
