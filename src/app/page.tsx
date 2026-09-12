@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { RebuildDashboardStatus } from "@/components/RebuildDashboardStatus";
+import BodyweightQuickLog from "@/components/BodyweightQuickLog";
 
 type Profile = { display_name: string | null };
 type WorkoutTemplate = { id: string; name: string; description: string | null; created_at: string; sort_order: number | null };
@@ -192,6 +193,8 @@ export default function HomePage() {
           <span>{activeWorkout ? "Resume PHATBOT Train" : "PHATBOT Train"}</span>
         </Link>
       </section>
+
+      <BodyweightQuickLog />
 
       {hasAttention && (
         <section className="flex flex-col gap-3">
