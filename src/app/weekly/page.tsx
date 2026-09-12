@@ -6,9 +6,10 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { scoreExercisePerformance, type PerformanceSet } from "@/features/scoring/progressiveOverload";
 import { calculateStrengthChange } from "@/features/scoring/strengthChange";
 import { calculateWeightedWorkoutScore } from "@/features/scoring/workoutScore";
+import { canonicalExerciseId, sameCanonicalExercise } from "@/features/exercises/identity";
 
 type RawSet = { weight: number; reps: number; partial_reps: number; set_type: string; set_number: number };
-type ExerciseSession = { exercise_id: string; position: number; notes: string | null; sets: RawSet[] };
+type ExerciseSession = { exercise_id: string; position: number; notes: string | null; sets: RawSet[]; exercise: { canonical_exercise_id: string | null; name: string } | null };
 type WorkoutSession = { id: string; workout_id: string; workout_name_snapshot: string; completed_at: string; notes: string | null };
 type WeeklyWorkout = { id: string; name: string; completedAt: string; score: number | null; strengthChange: number | null; skipped: number; techniqueProtected: boolean };
 type DailyMetric = { metric_date: string; steps: number | null; active_energy_kcal: number | null };
@@ -66,22 +67,22 @@ export default function WeeklyPage() {
 
       const results: WeeklyWorkout[] = [];
       for (const session of (sessionsResult.data ?? []) as WorkoutSession[]) {
-        const { data: currentData } = await supabase.from("exercise_sessions").select("exercise_id, position, notes, sets(weight,reps,partial_reps,set_type,set_number)").eq("workout_session_id", session.id).order("position");
-        const current = (currentData ?? []) as ExerciseSession[];
+        const { data: currentData } = await supabase.from("exercise_sessions").select("exercise_id, position, notes, sets(weight,reps,partial_reps,set_type,set_number), exercise:exercises(canonical_exercise_id,name)").eq("workout_session_id", session.id).order("position");
+        const current = (currentData ?? []) as unknown as ExerciseSession[];
         const skipped = current.filter((x) => (x.sets ?? []).length === 0).length;
         const completed = current.filter((x) => (x.sets ?? []).length > 0);
         const { data: previousSession } = await supabase.from("workout_sessions").select("id, notes").eq("athlete_user_id", user.id).eq("workout_id", session.workout_id).eq("status", "completed").lt("completed_at", session.completed_at).order("completed_at", { ascending: false }).limit(1).maybeSingle();
         if (!previousSession) { results.push({ id: session.id, name: session.workout_name_snapshot, completedAt: session.completed_at, score: null, strengthChange: null, skipped, techniqueProtected: false }); continue; }
-        const { data: previousData } = await supabase.from("exercise_sessions").select("exercise_id, position, notes, sets(weight,reps,partial_reps,set_type,set_number)").eq("workout_session_id", previousSession.id);
-        const previous = (previousData ?? []) as ExerciseSession[];
+        const { data: previousData } = await supabase.from("exercise_sessions").select("exercise_id, position, notes, sets(weight,reps,partial_reps,set_type,set_number), exercise:exercises(canonical_exercise_id,name)").eq("workout_session_id", previousSession.id);
+        const previous = (previousData ?? []) as unknown as ExerciseSession[];
         const first = [...completed].sort((a, b) => a.position - b.position)[0];
-        const pf = first ? previous.find((x) => x.exercise_id === first.exercise_id) : null;
+        const pf = first ? previous.find((x) => sameCanonicalExercise(x, first)) : null;
         const fs = first ? normalize(first.sets).filter((s) => s.setType !== "warmup").slice(0, 3) : [];
         const ps = pf ? normalize(pf.sets).filter((s) => s.setType !== "warmup").slice(0, 3) : [];
         const top = fs.map((s, i) => scoreExercisePerformance({ sets: [s], notes: notes(session.notes, first?.notes) }, ps[i] ? { sets: [ps[i]], notes: notes(previousSession.notes, pf?.notes) } : null));
-        const rest = completed.filter((x) => x.position !== first?.position).map((x) => { const p = previous.find((y) => y.exercise_id === x.exercise_id); return scoreExercisePerformance({ sets: normalize(x.sets), notes: notes(session.notes, x.notes) }, p ? { sets: normalize(p.sets), notes: notes(previousSession.notes, p.notes) } : null); });
+        const rest = completed.filter((x) => x.position !== first?.position).map((x) => { const p = previous.find((y) => sameCanonicalExercise(y, x)); return scoreExercisePerformance({ sets: normalize(x.sets), notes: notes(session.notes, x.notes) }, p ? { sets: normalize(p.sets), notes: notes(previousSession.notes, p.notes) } : null); });
         const workoutScore = calculateWeightedWorkoutScore(top, rest);
-        const strength = calculateStrengthChange(completed.map((x) => ({ exerciseId: x.exercise_id, sets: x.sets.map((s) => ({ weight: Number(s.weight), reps: s.reps, setType: s.set_type })) })), previous.map((x) => ({ exerciseId: x.exercise_id, sets: x.sets.map((s) => ({ weight: Number(s.weight), reps: s.reps, setType: s.set_type })) }))).percentageChange;
+        const strength = calculateStrengthChange(completed.map((x) => ({ exerciseId: canonicalExerciseId(x), sets: x.sets.map((s) => ({ weight: Number(s.weight), reps: s.reps, setType: s.set_type })) })), previous.map((x) => ({ exerciseId: canonicalExerciseId(x), sets: x.sets.map((s) => ({ weight: Number(s.weight), reps: s.reps, setType: s.set_type })) }))).percentageChange;
         results.push({ id: session.id, name: session.workout_name_snapshot, completedAt: session.completed_at, score: workoutScore.percentage, strengthChange: strength, skipped, techniqueProtected: top.some((r) => protectedTechnique(r.explanationCode)) || rest.some((r) => protectedTechnique(r.explanationCode)) });
       }
 

@@ -4,9 +4,10 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { canonicalExerciseId, canonicalExerciseName } from "@/features/exercises/identity";
 
 type RawSet={weight:number;reps:number;partial_reps:number;set_type:string;set_number:number};
-type ExerciseSession={id:string;exercise_id:string;exercise_name_snapshot:string;workout_session_id:string;sets:RawSet[]};
+type ExerciseSession={id:string;exercise_id:string;exercise_name_snapshot:string;workout_session_id:string;sets:RawSet[];exercise:{canonical_exercise_id:string|null;canonical_name?:string|null;name?:string|null}|null};
 type WorkoutSession={id:string;completed_at:string;workout_name_snapshot:string};
 type StoredPR={exercise_id:string;exercise_session_id:string;pr_type:"heaviest_weight"|"matched_load_reps";weight:number;reps:number;achieved_at:string};
 type Point={exerciseSessionId:string;sessionId:string;date:string;workoutName:string;weight:number;reps:number;volume:number;weightPR:boolean;repPR:boolean};
@@ -42,16 +43,21 @@ function CoachExerciseTrendsContent(){
     if(werr||prerr){setMessage(werr?.message??prerr?.message??"");setLoading(false);return;}
     const ws=(sessionRows??[]) as WorkoutSession[];setWorkouts(Object.fromEntries(ws.map(w=>[w.id,w])));setPrs((storedPrs??[]) as StoredPR[]);
     const ids=ws.map(w=>w.id);if(!ids.length){setLoading(false);return;}
-    const {data,error}=await supabase.from("exercise_sessions").select("id,exercise_id,exercise_name_snapshot,workout_session_id,sets(weight,reps,partial_reps,set_type,set_number)").in("workout_session_id",ids);
+    const {data,error}=await supabase.from("exercise_sessions").select("id,exercise_id,exercise_name_snapshot,workout_session_id,sets(weight,reps,partial_reps,set_type,set_number),exercise:exercises(canonical_exercise_id,name)").in("workout_session_id",ids);
     if(error){setMessage(error.message);setLoading(false);return;}
-    const ex=(data??[]) as ExerciseSession[];setExerciseSessions(ex);
-    const requested=requestedExercise&&ex.some(e=>e.exercise_id===requestedExercise)?requestedExercise:null;
-    if(ex.length)setSelected(requested??ex[0].exercise_id);setLoading(false);
+    const raw=(data??[]) as unknown as ExerciseSession[],rawIds=[...new Set(raw.map(row=>row.exercise_id))];
+    const {data:identities,error:identityError}=await supabase.from("exercise_identity").select("exercise_id,canonical_exercise_id,canonical_name").in("exercise_id",rawIds);
+    if(identityError){setMessage("Unable to load exercise identity.");setLoading(false);return;}
+    const identityById=new Map((identities??[]).map(row=>[row.exercise_id,row]));
+    const ex=raw.map(row=>({...row,exercise:identityById.get(row.exercise_id)??row.exercise}));setExerciseSessions(ex);
+    const requestedRow=requestedExercise?ex.find(e=>e.exercise_id===requestedExercise||canonicalExerciseId(e)===requestedExercise):null;
+    if(ex.length)setSelected(requestedRow?canonicalExerciseId(requestedRow):canonicalExerciseId(ex[0]));setLoading(false);
   }load();},[athleteId,requestedExercise]);
 
-  const exercises=useMemo(()=>Array.from(new Map(exerciseSessions.map(e=>[e.exercise_id,e.exercise_name_snapshot])).entries()).sort((a,b)=>a[1].localeCompare(b[1])),[exerciseSessions]);
-  const selectedPrs=useMemo(()=>prs.filter(p=>p.exercise_id===selected),[prs,selected]);
-  const points=useMemo<Point[]>(()=>exerciseSessions.filter(e=>e.exercise_id===selected).sort((a,b)=>new Date(workouts[a.workout_session_id]?.completed_at??0).getTime()-new Date(workouts[b.workout_session_id]?.completed_at??0).getTime()).map(e=>{const best=bestWorkingSet(e.sets??[]);const ws=workouts[e.workout_session_id];if(!best||!ws)return null;const sessionPrs=selectedPrs.filter(p=>p.exercise_session_id===e.id);return{exerciseSessionId:e.id,sessionId:e.workout_session_id,date:ws.completed_at,workoutName:ws.workout_name_snapshot,weight:Number(best.weight),reps:best.reps,volume:Number(best.weight)*best.reps,weightPR:sessionPrs.some(p=>p.pr_type==="heaviest_weight"),repPR:sessionPrs.some(p=>p.pr_type==="matched_load_reps")};}).filter(Boolean) as Point[],[exerciseSessions,selected,workouts,selectedPrs]);
+  const exercises=useMemo(()=>Array.from(new Map(exerciseSessions.map(e=>[canonicalExerciseId(e),canonicalExerciseName(e)])).entries()).sort((a,b)=>a[1].localeCompare(b[1])),[exerciseSessions]);
+  const identityByRaw=useMemo(()=>new Map(exerciseSessions.map(e=>[e.exercise_id,canonicalExerciseId(e)])),[exerciseSessions]);
+  const selectedPrs=useMemo(()=>prs.filter(p=>(identityByRaw.get(p.exercise_id)??p.exercise_id)===selected),[prs,selected,identityByRaw]);
+  const points=useMemo<Point[]>(()=>exerciseSessions.filter(e=>canonicalExerciseId(e)===selected).sort((a,b)=>new Date(workouts[a.workout_session_id]?.completed_at??0).getTime()-new Date(workouts[b.workout_session_id]?.completed_at??0).getTime()).map(e=>{const best=bestWorkingSet(e.sets??[]);const ws=workouts[e.workout_session_id];if(!best||!ws)return null;const sessionPrs=selectedPrs.filter(p=>p.exercise_session_id===e.id);return{exerciseSessionId:e.id,sessionId:e.workout_session_id,date:ws.completed_at,workoutName:ws.workout_name_snapshot,weight:Number(best.weight),reps:best.reps,volume:Number(best.weight)*best.reps,weightPR:sessionPrs.some(p=>p.pr_type==="heaviest_weight"),repPR:sessionPrs.some(p=>p.pr_type==="matched_load_reps")};}).filter(Boolean) as Point[],[exerciseSessions,selected,workouts,selectedPrs]);
   const selectedName=exercises.find(([id])=>id===selected)?.[1]??"Exercise";
   const maxW=Math.max(...points.map(p=>p.weight),1),minW=Math.min(...points.map(p=>p.weight),0),range=Math.max(maxW-minW,1),coords=points.map((p,i)=>({x:points.length===1?50:(i/(points.length-1))*100,y:95-((p.weight-minW)/range)*85}));
   const latest=points.at(-1),prior=points.at(-2),gain=latest&&prior?latest.weight-prior.weight:null,allTimeBest=points.length?[...points].sort((a,b)=>b.weight-a.weight||b.reps-a.reps)[0]:null;
