@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncAthleteRebuildProgress } from "@/features/coaching/rebuildProgress";
 import { scoreExercisePerformance, type PerformanceSet } from "@/features/scoring/progressiveOverload";
+import { canonicalExerciseId, canonicalExerciseName } from "@/features/exercises/identity";
 
 type RawSet = { weight: number; reps: number; partial_reps?: number; set_type: string };
 type Exposure = { exerciseSessionId: string; exerciseName: string; completedAt: string; strength: number; sets: RawSet[] };
@@ -49,25 +50,27 @@ export async function syncAthletePlateauSignals(supabase: SupabaseClient, athlet
   const dates = new Map(workoutRows.map((row) => [row.id, row.completed_at as string]));
   const { data: exerciseRows, error: exerciseError } = await supabase
     .from("exercise_sessions")
-    .select("id,exercise_id,exercise_name_snapshot,workout_session_id,sets(weight,reps,partial_reps,set_type)")
+    .select("id,exercise_id,exercise_name_snapshot,workout_session_id,sets(weight,reps,partial_reps,set_type),exercise:exercises(canonical_exercise_id,name)")
     .in("workout_session_id", workoutRows.map((row) => row.id));
   if (exerciseError) throw exerciseError;
 
   const byExercise = new Map<string, Exposure[]>();
-  for (const row of exerciseRows ?? []) {
+  for (const rawRow of exerciseRows ?? []) {
+    const row = rawRow as typeof rawRow & { exercise: { canonical_exercise_id: string | null; name: string } | null };
     const sets = (row.sets ?? []) as RawSet[];
     const strength = bestStrength(sets);
     if (strength <= 0) continue;
     const exposure: Exposure = {
       exerciseSessionId: row.id,
-      exerciseName: row.exercise_name_snapshot,
+      exerciseName: canonicalExerciseName(row),
       completedAt: dates.get(row.workout_session_id) ?? "",
       strength,
       sets,
     };
-    const list = byExercise.get(row.exercise_id) ?? [];
+    const identity = canonicalExerciseId(row);
+    const list = byExercise.get(identity) ?? [];
     list.push(exposure);
-    byExercise.set(row.exercise_id, list);
+    byExercise.set(identity, list);
   }
 
   const now = new Date().toISOString();

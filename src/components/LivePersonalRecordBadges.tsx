@@ -41,10 +41,29 @@ export function LivePersonalRecordBadges({ exerciseId, sessionStartedAt, sets, w
       const supabase = createSupabaseBrowserClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      const { data: identity, error: identityError } = await supabase
+        .from("exercise_identity")
+        .select("canonical_exercise_id")
+        .eq("exercise_id", exerciseId)
+        .maybeSingle();
+      if (identityError) {
+        if (!cancelled) setHistoricalSets([]);
+        return;
+      }
+      const canonicalId = identity?.canonical_exercise_id ?? exerciseId;
+      const { data: identityRows, error: aliasesError } = await supabase
+        .from("exercise_identity")
+        .select("exercise_id")
+        .eq("canonical_exercise_id", canonicalId);
+      if (aliasesError) {
+        if (!cancelled) setHistoricalSets([]);
+        return;
+      }
+      const comparableExerciseIds = (identityRows ?? []).map((row) => row.exercise_id);
       const { data, error } = await supabase
         .from("exercise_sessions")
         .select("sets(id,set_type,weight,reps,partial_reps),workout_sessions!inner(completed_at,athlete_user_id,status)")
-        .eq("exercise_id", exerciseId)
+        .in("exercise_id", comparableExerciseIds.length ? comparableExerciseIds : [exerciseId])
         .eq("workout_sessions.athlete_user_id", user.id)
         .eq("workout_sessions.status", "completed")
         .lt("workout_sessions.completed_at", sessionStartedAt);

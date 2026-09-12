@@ -3,8 +3,9 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { canonicalExerciseId } from "@/features/exercises/identity";
 
-type ExerciseRow = { exercise_id: string; exercise_name_snapshot: string };
+type ExerciseRow = { exercise_id: string; exercise_name_snapshot: string; exercise: { canonical_exercise_id: string | null } | null };
 
 function normalize(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
@@ -21,13 +22,13 @@ export default function ExerciseReportTrendLinks({ sessionId }: { sessionId: str
       const supabase = createSupabaseBrowserClient();
       const { data, error } = await supabase
         .from("exercise_sessions")
-        .select("exercise_id, exercise_name_snapshot")
+        .select("exercise_id, exercise_name_snapshot, exercise:exercises(canonical_exercise_id)")
         .eq("workout_session_id", sessionId);
 
       if (cancelled || error || !data?.length) return;
 
       const byName = new Map(
-        (data as ExerciseRow[]).map((row) => [normalize(row.exercise_name_snapshot), row.exercise_id]),
+        (data as unknown as ExerciseRow[]).map((row) => [normalize(row.exercise_name_snapshot), canonicalExerciseId(row)]),
       );
 
       const articles = Array.from(document.querySelectorAll("main article"));

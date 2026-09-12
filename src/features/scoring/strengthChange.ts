@@ -28,17 +28,28 @@ function hasEligibleCompletedWork(sets: StrengthSet[]) {
   return sets.some((set) => isVolumeSetType(set.setType) && set.reps > 0 && set.weight >= 0);
 }
 
+function groupExercisesByIdentity(exercises: StrengthExercise[]) {
+  const grouped = new Map<string, StrengthExercise>();
+  for (const exercise of exercises) {
+    const existing = grouped.get(exercise.exerciseId);
+    if (existing) existing.sets.push(...exercise.sets);
+    else grouped.set(exercise.exerciseId, { exerciseId: exercise.exerciseId, sets: [...exercise.sets] });
+  }
+  return grouped;
+}
+
 export function calculateStrengthChange(
   currentExercises: StrengthExercise[],
   previousExercises: StrengthExercise[],
 ): StrengthChangeResult {
-  const previousByExercise = new Map(previousExercises.map((exercise) => [exercise.exerciseId, exercise]));
+  const currentByExercise = groupExercisesByIdentity(currentExercises);
+  const previousByExercise = groupExercisesByIdentity(previousExercises);
 
   let currentLiftTotal = 0;
   let previousLiftTotal = 0;
   let comparableExerciseCount = 0;
 
-  for (const current of currentExercises) {
+  for (const current of currentByExercise.values()) {
     const previous = previousByExercise.get(current.exerciseId);
     if (!previous || !hasEligibleCompletedWork(current.sets)) continue;
 

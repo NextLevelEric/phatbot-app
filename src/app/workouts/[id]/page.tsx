@@ -5,9 +5,10 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { trackProductEvent } from "@/lib/productAnalytics";
+import { selectableExercise } from "@/features/exercises/identity";
 
 type Workout = { id: string; name: string; description: string | null };
-type Exercise = { id: string; name: string; muscle_group: string | null; equipment: string | null };
+type Exercise = { id: string; name: string; muscle_group: string | null; equipment: string | null; canonical_exercise_id: string | null; is_standard: boolean; is_custom: boolean };
 type WorkoutExercise = { id: string; position: number; target_rep_min: number | null; target_rep_max: number | null; prescribed_set_targets: string[]; exercise: Exercise };
 type RepDraft = { min: string; max: string };
 
@@ -45,8 +46,8 @@ export default function WorkoutDetailPage() {
     if (!user) { window.location.href = "/auth"; return; }
     const [workoutResult, workoutExercisesResult, exercisesResult] = await Promise.all([
       supabase.from("workouts").select("id, name, description").eq("id", params.id).eq("athlete_user_id", user.id).single(),
-      supabase.from("workout_exercises").select("id, position, target_rep_min, target_rep_max, prescribed_set_targets, exercise:exercises(id, name, muscle_group, equipment)").eq("workout_id", params.id).order("position", { ascending: true }),
-      supabase.from("exercises").select("id, name, muscle_group, equipment").eq("is_active", true).order("name", { ascending: true }),
+      supabase.from("workout_exercises").select("id, position, target_rep_min, target_rep_max, prescribed_set_targets, exercise:exercises(id, name, muscle_group, equipment, canonical_exercise_id, is_standard, is_custom)").eq("workout_id", params.id).order("position", { ascending: true }),
+      supabase.from("exercises").select("id, name, muscle_group, equipment, canonical_exercise_id, is_standard, is_custom").eq("is_active", true).order("name", { ascending: true }),
     ]);
     if (workoutResult.error) { setMessage(workoutResult.error.message); setWorkout(null); } else {
       setWorkout(workoutResult.data);
@@ -61,16 +62,16 @@ export default function WorkoutDetailPage() {
       setWorkoutExercises(rows);
       setRepDrafts(Object.fromEntries(rows.map((item) => [item.id, { min: item.target_rep_min?.toString() ?? "", max: item.target_rep_max?.toString() ?? "" }])));
     }
-    if (exercisesResult.error) setMessage(exercisesResult.error.message); else setAvailableExercises(exercisesResult.data ?? []);
+    if (exercisesResult.error) setMessage(exercisesResult.error.message); else setAvailableExercises(((exercisesResult.data ?? []) as Exercise[]).filter(selectableExercise));
     setLoading(false);
   }, [params.id]);
 
   useEffect(() => { loadPage(); }, [loadPage]);
 
-  const addedExerciseIds = useMemo(() => new Set(workoutExercises.map((item) => item.exercise.id)), [workoutExercises]);
+  const addedExerciseIds = useMemo(() => new Set(workoutExercises.map((item) => item.exercise.canonical_exercise_id ?? item.exercise.id)), [workoutExercises]);
   const filteredExercises = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return availableExercises.filter((exercise) => !addedExerciseIds.has(exercise.id) && (!query || [exercise.name, exercise.muscle_group, exercise.equipment].filter(Boolean).some((value) => value!.toLowerCase().includes(query))));
+    return availableExercises.filter((exercise) => !addedExerciseIds.has(exercise.canonical_exercise_id ?? exercise.id) && (!query || [exercise.name, exercise.muscle_group, exercise.equipment].filter(Boolean).some((value) => value!.toLowerCase().includes(query))));
   }, [availableExercises, addedExerciseIds, search]);
 
   async function addExercise(exerciseId: string) {

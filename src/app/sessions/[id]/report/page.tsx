@@ -9,9 +9,10 @@ import { detectPersonalRecords, type PersonalRecordResult, type PRSet } from "@/
 import { calculateStrengthChange, type StrengthChangeResult } from "@/features/scoring/strengthChange";
 import { formatHistoricalPerformanceDate, reportExerciseStatus, type HistoricalExercisePerformance } from "@/features/history/exerciseComparison";
 import { trackProductEvent } from "@/lib/productAnalytics";
+import { canonicalExerciseId, sameCanonicalExercise } from "@/features/exercises/identity";
 
 type RawSet = { weight:number; reps:number; partial_reps:number; set_type:string; set_number?:number };
-type ExerciseSession = { exercise_id:string; exercise_name_snapshot:string; position:number; notes:string|null; sets:RawSet[] };
+type ExerciseSession = { exercise_id:string; exercise_name_snapshot:string; position:number; notes:string|null; sets:RawSet[]; exercise:{canonical_exercise_id:string|null;name:string}|null };
 type Session = { id:string; workout_id:string; workout_name_snapshot:string; completed_at:string|null; notes:string|null };
 type PriorSession = { id:string; completed_at:string; notes:string|null };
 type ReportRow = { name:string; position:number; result:ExerciseScoreResult; prs:PersonalRecordResult[]; status:ReturnType<typeof reportExerciseStatus>; history:HistoricalExercisePerformance<RawSet>|null };
@@ -46,32 +47,32 @@ await trackProductEvent("report_viewed", {
     const{data:feedbackRows}=await supabase.from("coach_workout_feedback").select("id, feedback, coach_user_id, created_at, updated_at").eq("workout_session_id",params.id).eq("athlete_user_id",user.id).order("updated_at",{ascending:false});
     setCoachFeedback((feedbackRows??[])as CoachFeedback[]);
     if((feedbackRows??[]).length>0){const{error}=await supabase.rpc("mark_coach_feedback_read",{p_workout_session_id:params.id});if(error)console.error("PHATBOT could not mark coach feedback read",error);}
-    const{data:currentExercises,error:exerciseError}=await supabase.from("exercise_sessions").select("exercise_id, exercise_name_snapshot, position, notes, sets(weight, reps, partial_reps, set_type, set_number)").eq("workout_session_id",params.id).order("position",{ascending:true});
+    const{data:currentExercises,error:exerciseError}=await supabase.from("exercise_sessions").select("exercise_id, exercise_name_snapshot, position, notes, sets(weight, reps, partial_reps, set_type, set_number), exercise:exercises(canonical_exercise_id,name)").eq("workout_session_id",params.id).order("position",{ascending:true});
     if(exerciseError){setMessage(exerciseError.message);setLoading(false);return;}
-    const current=(currentExercises??[])as ExerciseSession[];
+    const current=(currentExercises??[])as unknown as ExerciseSession[];
     const{data:priorSessionRows}=await supabase.from("workout_sessions").select("id, completed_at, notes").eq("athlete_user_id",user.id).eq("status","completed").lt("completed_at",currentSession.completed_at).order("completed_at",{ascending:false});
     const priorSessions=(priorSessionRows??[]) as PriorSession[];
     const priorById=new Map(priorSessions.map(s=>[s.id,s]));
     const priorIds=priorSessions.map(s=>s.id);
     let allPriorExercises:(ExerciseSession&{workout_session_id:string})[]=[];
-    if(priorIds.length){const{data}=await supabase.from("exercise_sessions").select("workout_session_id, exercise_id, exercise_name_snapshot, position, notes, sets(weight, reps, partial_reps, set_type, set_number)").in("workout_session_id",priorIds);allPriorExercises=(data??[]) as (ExerciseSession&{workout_session_id:string})[];}
+    if(priorIds.length){const{data}=await supabase.from("exercise_sessions").select("workout_session_id, exercise_id, exercise_name_snapshot, position, notes, sets(weight, reps, partial_reps, set_type, set_number), exercise:exercises(canonical_exercise_id,name)").in("workout_session_id",priorIds);allPriorExercises=(data??[]) as unknown as (ExerciseSession&{workout_session_id:string})[];}
     const{data:previousSameWorkout}=await supabase.from("workout_sessions").select("id, notes").eq("athlete_user_id",user.id).eq("workout_id",currentSession.workout_id).eq("status","completed").lt("completed_at",currentSession.completed_at).order("completed_at",{ascending:false}).limit(1).maybeSingle();
     const previousExercises=previousSameWorkout?allPriorExercises.filter(e=>e.workout_session_id===previousSameWorkout.id):[];
     const reportRows:ReportRow[]=[];
     for(const exercise of current){
-      const candidates=allPriorExercises.filter(e=>e.exercise_id===exercise.exercise_id&&performedSets(e.sets??[]).length>0).sort((a,b)=>new Date(priorById.get(b.workout_session_id)?.completed_at??0).getTime()-new Date(priorById.get(a.workout_session_id)?.completed_at??0).getTime());
+      const candidates=allPriorExercises.filter(e=>sameCanonicalExercise(e,exercise)&&performedSets(e.sets??[]).length>0).sort((a,b)=>new Date(priorById.get(b.workout_session_id)?.completed_at??0).getTime()-new Date(priorById.get(a.workout_session_id)?.completed_at??0).getTime());
       const previous=candidates[0]??null;
       const previousSession=previous?priorById.get(previous.workout_session_id)??null:null;
       const history:HistoricalExercisePerformance<RawSet>|null=previous&&previousSession?{workoutSessionId:previous.workout_session_id,completedAt:previousSession.completed_at,notes:combinedNotes(previousSession.notes,previous.notes),sets:previous.sets??[]}:null;
       const currentComparable=performedSets(exercise.sets??[]);
       const status=reportExerciseStatus({currentComparableSetCount:currentComparable.length,historicalPerformance:history});
       const result=scoreExercisePerformance({sets:normalizeSets(exercise.sets??[]),notes:combinedNotes(currentSession.notes,exercise.notes)},previous?{sets:normalizeSets(previous.sets??[]),notes:combinedNotes(previousSession?.notes,previous.notes)}:null);
-      const historicalSets=allPriorExercises.filter(e=>e.exercise_id===exercise.exercise_id).flatMap(e=>e.sets??[]);
+      const historicalSets=allPriorExercises.filter(e=>sameCanonicalExercise(e,exercise)).flatMap(e=>e.sets??[]);
       reportRows.push({name:exercise.exercise_name_snapshot,position:exercise.position,result,prs:detectPersonalRecords(prSets(exercise.sets??[]),prSets(historicalSets)),status,history});
     }
-    if(previousSameWorkout)setStrengthChange(calculateStrengthChange(current.map(e=>({exerciseId:e.exercise_id,sets:strengthSets(e.sets??[])})),previousExercises.map(e=>({exerciseId:e.exercise_id,sets:strengthSets(e.sets??[])}))));else setStrengthChange(null);
+    if(previousSameWorkout)setStrengthChange(calculateStrengthChange(current.map(e=>({exerciseId:canonicalExerciseId(e),sets:strengthSets(e.sets??[])})),previousExercises.map(e=>({exerciseId:canonicalExerciseId(e),sets:strengthSets(e.sets??[])}))));else setStrengthChange(null);
     const first=[...current].sort((a,b)=>a.position-b.position)[0];
-    const priorFirst=first?allPriorExercises.filter(e=>e.exercise_id===first.exercise_id&&performedSets(e.sets??[]).length>0).sort((a,b)=>new Date(priorById.get(b.workout_session_id)?.completed_at??0).getTime()-new Date(priorById.get(a.workout_session_id)?.completed_at??0).getTime())[0]??null:null;
+    const priorFirst=first?allPriorExercises.filter(e=>sameCanonicalExercise(e,first)&&performedSets(e.sets??[]).length>0).sort((a,b)=>new Date(priorById.get(b.workout_session_id)?.completed_at??0).getTime()-new Date(priorById.get(a.workout_session_id)?.completed_at??0).getTime())[0]??null:null;
     const firstSets=first?performedSets(first.sets??[]).slice(0,3):[],previousSets=priorFirst?performedSets(priorFirst.sets??[]).slice(0,3):[];
     setTopSetScores(firstSets.map((s,i)=>{
       const previousSet=previousSets[i]??null;
