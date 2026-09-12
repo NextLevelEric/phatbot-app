@@ -63,8 +63,18 @@ describe("Beast canonical exercise identity", () => {
   });
 
   it("groups current and prior volume by canonical identity in official and live Beast", () => {
-    expect(migration).toContain("coalesce(cur_identity.canonical_exercise_id,cur.exercise_id) canonical_exercise_id");
-    expect(migration).toContain("coalesce(prev_identity.canonical_exercise_id,prev_ex.exercise_id)=coalesce(cur_identity.canonical_exercise_id,cur.exercise_id)");
+    const officialRebuild = migration.slice(
+      migration.indexOf("function public.phatbot_rebuild_competition_period"),
+      migration.indexOf("-- Train Together uses"),
+    );
+
+    expect(officialRebuild).toContain("), current_exercises as (");
+    expect(officialRebuild).toContain("coalesce(cur_identity.canonical_exercise_id,cur.exercise_id) canonical_exercise_id");
+    expect(officialRebuild).toContain("from current_exercises ce");
+    expect(officialRebuild).toContain("coalesce(prev_identity.canonical_exercise_id,prev_ex.exercise_id)=ce.canonical_exercise_id");
+    expect(officialRebuild).toContain("group by ce.workout_session_id,ce.athlete_user_id,ce.completed_at,ce.previous_session_id,ce.canonical_exercise_id");
+    expect(officialRebuild.match(/coalesce\(cur_identity\.canonical_exercise_id,cur\.exercise_id\)/g)).toHaveLength(1);
+    expect(officialRebuild).not.toContain("=coalesce(cur_identity.canonical_exercise_id,cur.exercise_id)");
     expect(migration).toContain("coalesce(pex_identity.canonical_exercise_id,pex.exercise_id)=c.canonical_exercise_id");
   });
 

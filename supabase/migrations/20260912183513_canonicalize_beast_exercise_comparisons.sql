@@ -125,9 +125,16 @@ begin
       where ws.status='completed' and coalesce(ws.is_test,false)=false
         and ws.completed_at>=v_period.period_start and ws.completed_at<v_period.period_end
         and prev.id is not null
+    ), current_exercises as (
+      select cs.id workout_session_id,cs.athlete_user_id,cs.completed_at,cs.previous_session_id,
+        cur.id exercise_session_id,
+        coalesce(cur_identity.canonical_exercise_id,cur.exercise_id) canonical_exercise_id
+      from current_sessions cs
+      join public.exercise_sessions cur on cur.workout_session_id=cs.id
+      join public.exercises cur_identity on cur_identity.id=cur.exercise_id
     ), exercise_totals as (
-      select cs.id workout_session_id,cs.athlete_user_id,cs.completed_at,
-        coalesce(cur_identity.canonical_exercise_id,cur.exercise_id) canonical_exercise_id,
+      select ce.workout_session_id,ce.athlete_user_id,ce.completed_at,
+        ce.canonical_exercise_id,
         count(s.id) filter (
           where s.set_type::text not in ('warmup','timed')
             and coalesce(s.reps,0)>0
@@ -138,13 +145,11 @@ begin
           from public.exercise_sessions prev_ex
           join public.exercises prev_identity on prev_identity.id=prev_ex.exercise_id
           join public.sets ps on ps.exercise_session_id=prev_ex.id
-          where prev_ex.workout_session_id=cs.previous_session_id
-            and coalesce(prev_identity.canonical_exercise_id,prev_ex.exercise_id)=coalesce(cur_identity.canonical_exercise_id,cur.exercise_id)),0)::numeric previous_total
-      from current_sessions cs
-      join public.exercise_sessions cur on cur.workout_session_id=cs.id
-      join public.exercises cur_identity on cur_identity.id=cur.exercise_id
-      left join public.sets s on s.exercise_session_id=cur.id
-      group by cs.id,cs.athlete_user_id,cs.completed_at,cs.previous_session_id,coalesce(cur_identity.canonical_exercise_id,cur.exercise_id)
+          where prev_ex.workout_session_id=ce.previous_session_id
+            and coalesce(prev_identity.canonical_exercise_id,prev_ex.exercise_id)=ce.canonical_exercise_id),0)::numeric previous_total
+      from current_exercises ce
+      left join public.sets s on s.exercise_session_id=ce.exercise_session_id
+      group by ce.workout_session_id,ce.athlete_user_id,ce.completed_at,ce.previous_session_id,ce.canonical_exercise_id
     ), workout_results as (
       select athlete_user_id,workout_session_id,min(completed_at) completed_at,
         sum(greatest(current_total,0)) current_lift_total,
