@@ -18,6 +18,7 @@ alter table public.athlete_program_enrollments
   drop constraint athlete_program_enrollments_status_check,
   add column source_type text,
   add column assigned_by_user_id uuid references public.profiles(id) on delete restrict,
+  add column review_due_at timestamptz,
   add column created_at timestamptz,
   add column updated_at timestamptz;
 
@@ -60,6 +61,8 @@ comment on column public.athlete_program_enrollments.program_id is
   'Exact immutable training_programs version assigned; never a program family reference.';
 comment on column public.athlete_program_enrollments.source_type is
   'Assignment origin: coach, athlete stock selection, athlete-created program, or controlled system migration.';
+comment on column public.athlete_program_enrollments.review_due_at is
+  'Optional coaching review target. It never expires, ends, versions, or advances an assignment.';
 
 do $$
 begin
@@ -129,7 +132,8 @@ create or replace function phatbot_private.switch_program_assignment(
   p_athlete_user_id uuid,
   p_program_id uuid,
   p_source_type text,
-  p_assigned_by_user_id uuid
+  p_assigned_by_user_id uuid,
+  p_review_due_at timestamptz
 )
 returns public.athlete_program_enrollments
 language plpgsql
@@ -189,6 +193,14 @@ begin
     and existing_assignment.source_type = p_source_type
     and existing_assignment.assigned_by_user_id is not distinct from p_assigned_by_user_id
   then
+    if p_review_due_at is not null
+      and existing_assignment.review_due_at is distinct from p_review_due_at
+    then
+      update public.athlete_program_enrollments assignment
+      set review_due_at = p_review_due_at
+      where assignment.id = existing_assignment.id
+      returning * into existing_assignment;
+    end if;
     return existing_assignment;
   end if;
 
@@ -204,6 +216,7 @@ begin
     status,
     source_type,
     assigned_by_user_id,
+    review_due_at,
     started_at,
     ended_at,
     created_at,
@@ -215,6 +228,7 @@ begin
     'active',
     p_source_type,
     p_assigned_by_user_id,
+    p_review_due_at,
     switched_at,
     null,
     switched_at,
@@ -226,15 +240,16 @@ begin
 end
 $$;
 
-revoke execute on function phatbot_private.switch_program_assignment(uuid, uuid, text, uuid)
+revoke execute on function phatbot_private.switch_program_assignment(uuid, uuid, text, uuid, timestamptz)
   from public, anon, authenticated;
-grant execute on function phatbot_private.switch_program_assignment(uuid, uuid, text, uuid)
+grant execute on function phatbot_private.switch_program_assignment(uuid, uuid, text, uuid, timestamptz)
   to service_role;
 
 create or replace function public.assign_program_to_athlete(
   p_athlete_user_id uuid,
   p_program_id uuid,
-  p_source_type text
+  p_source_type text,
+  p_review_due_at timestamptz
 )
 returns public.athlete_program_enrollments
 language plpgsql
@@ -327,9 +342,36 @@ begin
     p_athlete_user_id,
     p_program_id,
     p_source_type,
-    caller_user_id
+    caller_user_id,
+    p_review_due_at
   );
 end
+$$;
+
+revoke execute on function public.assign_program_to_athlete(uuid, uuid, text, timestamptz)
+  from public, anon;
+grant execute on function public.assign_program_to_athlete(uuid, uuid, text, timestamptz)
+  to authenticated, service_role;
+
+-- Preserve the original three-argument RPC contract. An omitted review date
+-- never clears a date already stored on the active assignment.
+create or replace function public.assign_program_to_athlete(
+  p_athlete_user_id uuid,
+  p_program_id uuid,
+  p_source_type text
+)
+returns public.athlete_program_enrollments
+language sql
+volatile
+security invoker
+set search_path = ''
+as $$
+  select public.assign_program_to_athlete(
+    p_athlete_user_id,
+    p_program_id,
+    p_source_type,
+    null::timestamptz
+  );
 $$;
 
 revoke execute on function public.assign_program_to_athlete(uuid, uuid, text)
@@ -356,6 +398,7 @@ returns table (
   assigned_by_display_name text,
   started_at timestamptz,
   ended_at timestamptz,
+  review_due_at timestamptz,
   created_at timestamptz,
   updated_at timestamptz
 )
@@ -399,6 +442,7 @@ begin
     assigner.display_name,
     assignment.started_at,
     assignment.ended_at,
+    assignment.review_due_at,
     assignment.created_at,
     assignment.updated_at
   from public.athlete_program_enrollments assignment
@@ -494,6 +538,7 @@ begin
     p_user,
     current_program_id,
     'system_migration',
+    null,
     null
   );
   return assignment.id;

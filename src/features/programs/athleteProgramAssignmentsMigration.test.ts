@@ -14,6 +14,10 @@ describe("athlete program assignment migration", () => {
     expect(normalized).toContain(
       "program_id is 'exact immutable training_programs version assigned; never a program family reference.'",
     );
+    expect(normalized).toContain("add column review_due_at timestamptz");
+    expect(normalized).toContain(
+      "it never expires, ends, versions, or advances an assignment",
+    );
     expect(normalized).not.toContain("create table public.athlete_program_assignments");
     expect(normalized).not.toContain("alter table public.workout_sessions");
     expect(normalized).not.toContain("update public.workout_sessions");
@@ -47,6 +51,7 @@ describe("athlete program assignment migration", () => {
     expect(normalized).toContain(
       "existing_assignment.assigned_by_user_id is not distinct from p_assigned_by_user_id",
     );
+    expect(normalized).toContain("p_review_due_at is not null");
     expect(normalized).toContain("return existing_assignment");
   });
 
@@ -76,6 +81,7 @@ describe("athlete program assignment migration", () => {
       "create or replace function public.get_athlete_program_assignments",
     );
     expect(normalized).toContain("order by assignment.started_at desc");
+    expect(normalized).toContain("assignment.review_due_at");
     expect(normalized).toContain(
       "grant select on table public.athlete_program_enrollments to authenticated",
     );
@@ -116,7 +122,8 @@ describe("athlete program assignment migration", () => {
 
   it("removes public function execution defaults", () => {
     for (const signature of [
-      "phatbot_private.switch_program_assignment(uuid, uuid, text, uuid)",
+      "phatbot_private.switch_program_assignment(uuid, uuid, text, uuid, timestamptz)",
+      "public.assign_program_to_athlete(uuid, uuid, text, timestamptz)",
       "public.assign_program_to_athlete(uuid, uuid, text)",
       "public.get_athlete_program_assignments(uuid)",
       "public.enroll_in_current_eric_program()",
