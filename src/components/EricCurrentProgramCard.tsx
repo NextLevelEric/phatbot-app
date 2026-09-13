@@ -36,7 +36,7 @@ export default function EricCurrentProgramCard() {
     const {error}=await supabase.rpc("enroll_in_current_eric_program");
     if(error){setMessage(error.message);setWorking(false);return;}
     setProgram(current=>current?{...current,enrolled:true}:current);
-    setMessage("Eric's six-day program is locked and loaded.");
+    setMessage("Program selected. Your next workout is ready.");
     setWorking(false);
     window.setTimeout(()=>window.location.reload(),650);
   }
