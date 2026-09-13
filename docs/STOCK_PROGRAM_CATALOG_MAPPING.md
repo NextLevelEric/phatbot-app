@@ -106,8 +106,8 @@ muscle is recorded.
 | Hammer Strength Plate-Loaded Iso-Lateral Decline Chest Press | chest | triceps, shoulders | horizontal push | machine | compound | unilateral | decline |
 | Hanging Leg Raise | core | — | core | bodyweight | compound | bilateral | other |
 | Heel-Elevated Barbell Squat | quads | glutes | squat | barbell | compound | bilateral | standing |
-| Hip Abductor Machine | glutes | — | isolation | machine | isolation | bilateral | seated |
-| Hip Adductor Machine | other | — | isolation | machine | isolation | bilateral | seated |
+| Hip Abductor Machine | abductors | — | isolation | machine | isolation | bilateral | seated |
+| Hip Adductor Machine | adductors | — | isolation | machine | isolation | bilateral | seated |
 | Incline Dumbbell Lateral Raise | shoulders | — | isolation | dumbbell | isolation | bilateral | incline |
 | Iso-Lateral Leg Extension | quads | — | isolation | machine | isolation | unilateral | seated |
 | Lateral Raise | shoulders | — | isolation | other | isolation | bilateral | other |

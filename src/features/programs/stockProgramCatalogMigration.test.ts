@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const migrationPath =
-  "supabase/migrations/20260913121941_stock_program_catalog.sql";
+  "supabase/migrations/20260913171833_stock_program_catalog_v1.sql";
+const muscleGroupMigrationPath =
+  "supabase/migrations/20260913171823_add_adductor_abductor_muscle_groups.sql";
 const sql = readFileSync(migrationPath, "utf8");
 const normalized = sql.replace(/\s+/g, " ").toLowerCase();
 
@@ -21,6 +23,18 @@ function rowsFor(sectionSql: string, familySlug: string) {
 }
 
 describe("stock program catalog migration", () => {
+  it("extends the controlled muscle taxonomy before the catalog uses it", () => {
+    const muscleGroupSql = readFileSync(muscleGroupMigrationPath, "utf8");
+
+    expect(muscleGroupSql).toContain(
+      "alter type public.exercise_muscle_group add value if not exists 'adductors'",
+    );
+    expect(muscleGroupSql).toContain(
+      "alter type public.exercise_muscle_group add value if not exists 'abductors'",
+    );
+    expect(muscleGroupMigrationPath.localeCompare(migrationPath)).toBeLessThan(0);
+  });
+
   it("creates four stock families and exactly one published rotation v1 each", () => {
     const programs = section(
       "insert into _stock_catalog_programs values",
@@ -138,6 +152,22 @@ describe("stock program catalog migration", () => {
     expect(rows).toHaveLength(47);
     expect(normalized).toContain("canonical exercise metadata conflicts with the reviewed definition");
     expect(normalized).toContain("secondary-muscle metadata conflicts with the reviewed definition");
+  });
+
+  it("classifies the hip machines with controlled, specific primary muscles", () => {
+    expect(sql).toContain(
+      "('Hip Abductor Machine','Abductors','Machine','abductors','isolation','machine','isolation','bilateral','seated')",
+    );
+    expect(sql).toContain(
+      "('Hip Adductor Machine','Adductors','Machine','adductors','isolation','machine','isolation','bilateral','seated')",
+    );
+
+    const secondaryMuscles = section(
+      "insert into _stock_catalog_secondary_muscles values",
+      "insert into public.exercise_secondary_muscles",
+    );
+    expect(secondaryMuscles).not.toContain("Hip Abductor Machine");
+    expect(secondaryMuscles).not.toContain("Hip Adductor Machine");
   });
 
   it("is idempotent without mutating published versions or Smooth Bear", () => {
