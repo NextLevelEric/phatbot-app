@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { scoreExercisePerformance, type PerformanceSet } from "@/features/scoring/progressiveOverload";
 import { calculateStrengthChange } from "@/features/scoring/strengthChange";
 import { detectPersonalRecords, type PRSet } from "@/features/scoring/personalRecords";
+import CoachAthleteProgramSection from "@/components/CoachAthleteProgramSection";
 
 type RawSet={weight:number;reps:number;partial_reps:number;set_type:string;set_number:number};
 type Ex={exercise_id:string;exercise_name_snapshot:string;position:number;notes:string|null;sets:RawSet[]};
@@ -79,6 +80,8 @@ export default function CoachAthletePage(){
  return <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
   <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p className="phat-accent text-sm font-semibold uppercase tracking-[.25em]">PHATBOT Coach · Athlete Performance Hub</p><h1 className="mt-2 text-3xl font-bold">{name}</h1><p className="mt-2 text-zinc-400">Performance first. Coaching signals next. Programming and history stay one tap away.</p></div><div className="flex flex-wrap gap-2"><Link href={`/coach/athletes/${athleteId}/workouts/new`} className="phat-accent-bg rounded-lg px-4 py-2 text-center text-sm font-semibold">Add Workout</Link><Link href="/coach" className="rounded-lg border border-zinc-700 px-4 py-2 text-center text-sm font-semibold">All Athletes</Link></div></header>
   {message&&<p className="rounded-xl border border-zinc-800 p-4 text-sm">{message}</p>}
+
+  <CoachAthleteProgramSection athleteId={athleteId}/>
 
   <section><p className="phat-accent text-xs font-bold uppercase tracking-[.2em]">Performance Metrics</p><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Workouts This Week" value={String(wk.length)}/><Metric label="Average PHATBOT Score" value={score===null?"Baseline":`${score}%`}/><Metric label="Training Volume vs Prior" value={volume===null?"N/A":`${volume>=0?"+":""}${volume.toFixed(1)}%`} accent={volume!==null&&volume>0}/><Metric label="PRs This Week" value={String(weekPRs)} accent={weekPRs>0}/></div></section>
 

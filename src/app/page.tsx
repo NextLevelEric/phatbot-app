@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { RebuildDashboardStatus } from "@/components/RebuildDashboardStatus";
 import BodyweightQuickLog from "@/components/BodyweightQuickLog";
+import AthleteProgramHomeCard from "@/components/AthleteProgramHomeCard";
 
 type Profile = { display_name: string | null };
 type WorkoutTemplate = { id: string; name: string; description: string | null; created_at: string; sort_order: number | null };
@@ -35,6 +36,7 @@ function DumbbellIcon() {
 export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [workoutTemplates, setWorkoutTemplates] = useState<WorkoutTemplate[]>([]);
@@ -67,6 +69,7 @@ export default function HomePage() {
 
         const user = session.user;
         setSignedIn(true);
+        setUserId(user.id);
 
         const [profileResult, templatesResult, latestResult, activeResult, feedbackResult, plateauResult, readsResult] = await Promise.all([
           supabase.from("profiles").select("display_name").eq("id", user.id).single(),
@@ -110,6 +113,7 @@ export default function HomePage() {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         setSignedIn(false);
+        setUserId(null);
         setLoadError(null);
         setLoading(false);
         window.location.replace("/auth");
@@ -166,7 +170,6 @@ export default function HomePage() {
   if (!signedIn) return null;
 
   const firstName = profile?.display_name?.trim().split(/\s+/)[0] ?? null;
-  const trainHref = activeWorkout ? `/sessions/${activeWorkout.id}` : "/workouts";
   const visibleTemplates = workoutTemplates.slice(0, 2);
   const hasAttention = Boolean(latestCoachFeedback || plateauSignals.length > 0);
 
@@ -178,21 +181,23 @@ export default function HomePage() {
         <p className="mt-2 text-sm text-zinc-400">Train. Track. Improve.</p>
       </header>
 
-      <section className="overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-b from-zinc-900 to-black p-5 shadow-2xl sm:p-7">
+      {activeWorkout && <section className="overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-b from-zinc-900 to-black p-5 shadow-2xl sm:p-7">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">{activeWorkout ? "Workout in progress" : "Today's mission"}</p>
-            <h2 className="mt-2 text-2xl font-black sm:text-3xl">{activeWorkout ? activeWorkout.workout_name_snapshot : "What are we training?"}</h2>
-            <p className="mt-2 max-w-md text-sm text-zinc-400">{activeWorkout ? "Your session is saved. PHATBOT is ready to pick up exactly where you left off." : "Choose a workout and give PHATBOT something to analyze."}</p>
+            <p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">Workout in progress</p>
+            <h2 className="mt-2 text-2xl font-black sm:text-3xl">{activeWorkout.workout_name_snapshot}</h2>
+            <p className="mt-2 max-w-md text-sm text-zinc-400">Your session is saved. PHATBOT is ready to pick up exactly where you left off.</p>
           </div>
           <div className="shrink-0 text-[#ff0032]"><DumbbellIcon /></div>
         </div>
 
-        <Link href={trainHref} className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-[#ff0032] px-5 py-4 text-base font-black text-white shadow-lg transition active:scale-[.99]">
+        <Link href={`/sessions/${activeWorkout.id}`} className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-[#ff0032] px-5 py-4 text-base font-black text-white shadow-lg transition active:scale-[.99]">
           <DumbbellIcon />
-          <span>{activeWorkout ? "Resume PHATBOT Train" : "PHATBOT Train"}</span>
+          <span>Resume PHATBOT Train</span>
         </Link>
-      </section>
+      </section>}
+
+      {userId && <AthleteProgramHomeCard userId={userId} activeWorkout={activeWorkout} />}
 
       <BodyweightQuickLog />
 

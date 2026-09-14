@@ -6,7 +6,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 type RawSet = { weight: number; reps: number; set_type: string };
 type Signal = "review" | "plateau" | "win" | "reviewed" | "idle";
-type ClientRow = { athleteId:string; name:string; latestWorkout:string|null; latestWorkoutAt:string|null; workoutsThisWeek:number; signal:Signal; signalText:string; detail:string|null };
+type ClientRow = { athleteId:string; name:string; latestWorkout:string|null; latestWorkoutAt:string|null; workoutsThisWeek:number; signal:Signal; signalText:string; detail:string|null; programReviewDue:boolean };
 type PendingInvite = { id:string; athlete_name:string|null; athlete_email:string; created_at:string; expires_at:string };
 
 function mondayStart() {
@@ -53,10 +53,11 @@ export default function CoachDashboardPage() {
 
       for (const link of linksResult.data ?? []) {
         const athleteId = link.athlete_user_id;
-        const [profileResult,sessionsResult,weeklyResult] = await Promise.all([
+        const [profileResult,sessionsResult,weeklyResult,programResult] = await Promise.all([
           supabase.from("profiles").select("display_name").eq("id",athleteId).maybeSingle(),
           supabase.from("workout_sessions").select("id,workout_name_snapshot,completed_at").eq("athlete_user_id",athleteId).eq("status","completed").order("completed_at",{ascending:false}).limit(12),
           supabase.from("workout_sessions").select("id",{count:"exact",head:true}).eq("athlete_user_id",athleteId).eq("status","completed").gte("completed_at",mondayStart().toISOString()),
+          supabase.rpc("get_athlete_program_assignments", { p_athlete_user_id: athleteId }),
         ]);
 
         const sessions = sessionsResult.data ?? [];
@@ -118,11 +119,18 @@ export default function CoachDashboardPage() {
           }
         }
 
-        rows.push({ athleteId, name:profileResult.data?.display_name ?? "Athlete", latestWorkout:latest?.workout_name_snapshot ?? null, latestWorkoutAt:latest?.completed_at ?? null, workoutsThisWeek:weeklyResult.count ?? 0, signal, signalText, detail });
+        const activeProgram = ((programResult.data ?? []) as {assignment_status:string;review_due_at:string|null}[]).find((assignment) => assignment.assignment_status === "active");
+        const programReviewDue = Boolean(activeProgram?.review_due_at && new Date(activeProgram.review_due_at).getTime() <= Date.now());
+        if (programReviewDue) {
+          signal = "review";
+          signalText = "Program Review Due";
+          detail = detail ?? "This athlete's program review date has arrived. Their assignment and workout rotation remain active.";
+        }
+        rows.push({ athleteId, name:profileResult.data?.display_name ?? "Athlete", latestWorkout:latest?.workout_name_snapshot ?? null, latestWorkoutAt:latest?.completed_at ?? null, workoutsThisWeek:weeklyResult.count ?? 0, signal, signalText, detail, programReviewDue });
       }
 
       const rank: Record<Signal,number> = { review:0, plateau:1, win:2, reviewed:3, idle:4 };
-      rows.sort((a,b) => rank[a.signal]-rank[b.signal] || new Date(b.latestWorkoutAt ?? 0).getTime()-new Date(a.latestWorkoutAt ?? 0).getTime());
+      rows.sort((a,b) => Number(b.programReviewDue)-Number(a.programReviewDue) || rank[a.signal]-rank[b.signal] || new Date(b.latestWorkoutAt ?? 0).getTime()-new Date(a.latestWorkoutAt ?? 0).getTime());
       setClients(rows);
       setLoading(false);
     }
