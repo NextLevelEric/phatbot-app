@@ -3,6 +3,9 @@ import {
   assignmentSourceLabel,
   buildNextProgramWorkout,
   formatPrescriptionTargets,
+  formatProgramStartDate,
+  minimumFutureProgramStartDate,
+  programStartDateInputValue,
   reviewDateStatus,
   type NextProgramWorkoutRow,
   type ProgramAssignment,
@@ -78,5 +81,13 @@ describe("program UI view models", () => {
     expect(formatPrescriptionTargets(["12+"])).toBe("12+");
     expect(formatPrescriptionTargets(["2 Minutes (Non consecutive)"])).toBe("2 Minutes (Non consecutive)");
     expect(formatPrescriptionTargets([""])).toBe("Targets not specified");
+  });
+
+  it("formats scheduled starts by the authoritative Eastern calendar date", () => {
+    expect(formatProgramStartDate("2026-09-21T04:00:00Z")).toBe("Sep 21, 2026");
+    expect(programStartDateInputValue("2026-09-21T04:00:00Z")).toBe("2026-09-21");
+    expect(programStartDateInputValue("2026-11-01T04:00:00Z")).toBe("2026-11-01");
+    expect(minimumFutureProgramStartDate(new Date("2026-09-14T23:30:00Z"))).toBe("2026-09-15");
+    expect(minimumFutureProgramStartDate(new Date("2026-09-15T04:30:00Z"))).toBe("2026-09-16");
   });
 });
