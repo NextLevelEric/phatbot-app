@@ -33,9 +33,11 @@ describe("program management UI integration", () => {
   });
 
   it("loads only active published stock catalog entries for athlete selection", () => {
-    expect(catalog).toContain('.eq("source_type", "phatbot_stock")');
-    expect(catalog).toContain('.eq("visibility", "stock_catalog")');
+    expect(catalog).toContain('.eq("program_families.source_type", "phatbot_stock")');
+    expect(catalog).toContain('.eq("program_families.visibility", "stock_catalog")');
+    expect(catalog).toContain('.eq("program_families.status", "active")');
     expect(catalog).toContain('.eq("status", "published")');
+    expect(catalog).toContain("program_families!inner");
     expect(catalog).not.toContain("first day in the gym\",");
   });
 
