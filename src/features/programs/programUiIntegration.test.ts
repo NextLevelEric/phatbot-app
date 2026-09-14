@@ -15,6 +15,8 @@ describe("program management UI integration", () => {
     expect(home).toContain("get_next_program_workout");
     expect(home).toContain("your program");
     expect(home).toContain("next workout");
+    expect(home).toContain('assignment_status === "scheduled"');
+    expect(home).toContain("new program starts");
   });
 
   it("starts through the authoritative RPC and resumes an active workout", () => {
@@ -59,6 +61,8 @@ describe("program management UI integration", () => {
     expect(detail).toContain("day.id === next?.dayid");
     expect(detail).toContain("formatprescriptiontargets");
     expect(detail).toContain("assignment history");
+    expect(detail).toContain('assignment_status === "scheduled"');
+    expect(detail).toContain("up next");
   });
 
   it("lets a coach assign, schedule or clear review, and view history without table writes", () => {
@@ -66,6 +70,10 @@ describe("program management UI integration", () => {
     expect(coach).toContain('rpc("set_program_assignment_review_due_at"');
     expect(coach).toContain("no review");
     expect(coach).toContain("view history");
+    expect(coach).toContain('rpc("schedule_program_for_athlete"');
+    expect(coach).toContain('rpc("cancel_scheduled_program_for_athlete"');
+    expect(coach).toContain("schedule next program");
+    expect(coach).toContain("change scheduled program");
     expect(coach).not.toContain('.from("athlete_program_enrollments").update');
     expect(coach).not.toContain('.from("athlete_program_enrollments").insert');
   });

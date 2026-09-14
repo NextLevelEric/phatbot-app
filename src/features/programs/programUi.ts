@@ -6,7 +6,7 @@ export type ProgramAssignment = {
   program_name: string;
   program_family_name: string;
   version_number: number;
-  assignment_status: "active" | "ended";
+  assignment_status: "active" | "scheduled" | "ended";
   source_type: "coach_assigned" | "athlete_selected" | "athlete_created" | "system_migration";
   assigned_by_user_id: string | null;
   assigned_by_display_name: string | null;
@@ -102,6 +102,36 @@ export function formatAssignmentDate(value: string) {
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+export function formatProgramStartDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "America/New_York",
+  });
+}
+
+export function programStartDateInputValue(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "America/New_York",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+export function minimumFutureProgramStartDate(now = new Date()) {
+  const today = programStartDateInputValue(now.toISOString());
+  const [year, month, day] = today.split("-").map(Number);
+  const tomorrow = new Date(Date.UTC(year, month - 1, day + 1));
+  return tomorrow.toISOString().slice(0, 10);
+}
+
 export function formatPrescriptionTargets(targets: string[]) {
   if (!targets.length || targets.every((target) => target.trim() === "")) return "Targets not specified";
   const visible = targets.map((target) => target.trim() || "—");
@@ -111,9 +141,11 @@ export function formatPrescriptionTargets(targets: string[]) {
   return visible.join(" / ");
 }
 
-export function friendlyProgramError(action: "load" | "assign" | "review" | "start") {
+export function friendlyProgramError(action: "load" | "assign" | "review" | "start" | "schedule" | "cancelSchedule") {
   if (action === "assign") return "PHATBOT couldn't change the program. Nothing was changed. Please try again.";
   if (action === "review") return "PHATBOT couldn't save the review date. The assignment is unchanged.";
   if (action === "start") return "PHATBOT couldn't start the next workout. Your program position is unchanged.";
+  if (action === "schedule") return "PHATBOT couldn't schedule the next program. The current program is unchanged.";
+  if (action === "cancelSchedule") return "PHATBOT couldn't cancel the scheduled program. The current program is unchanged.";
   return "PHATBOT couldn't load program details. Your training data is safe.";
 }
