@@ -1,21 +1,60 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import CardioTrendPanel from "@/components/CardioTrendPanel";
+import {
+  buildComparableEffortGroups,
+  loadComparableEffortData,
+  type CardioActivityRow,
+  type CardioSegmentRow,
+} from "@/features/cardio/comparableEfforts";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
-type Segment = { id:string; cardio_activity_id:string; segment_key:string; segment_label:string; distance_meters:number; duration_seconds:number; start_offset_seconds:number; end_offset_seconds:number };
-type Activity = { id:string; activity_name:string|null; started_at:string; distance_meters:number|null; duration_seconds:number };
-const MILE_METERS=1609.344;
-function clock(value:number){const total=Math.max(0,Math.round(value)),h=Math.floor(total/3600),m=Math.floor((total%3600)/60),s=total%60;return h?`${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`:`${m}:${String(s).padStart(2,"0")}`;}
-function miles(value:number|null){return value==null?null:value/MILE_METERS;}
-function activityType(activity:Activity|undefined){const raw=(activity?.activity_name??"Activity").trim();if(!raw)return"Activity";const lower=raw.toLowerCase();if(lower.includes("walk"))return"Walk";if(lower.includes("run"))return"Run";if(lower.includes("bike")||lower.includes("cycl"))return"Ride";if(lower.includes("hike"))return"Hike";return raw;}
-function benchmarkLabel(activity:Activity|undefined,segment:Segment){return `${segment.segment_label} ${activityType(activity)}`;}
-function parentLabel(activity:Activity|undefined,segment:Segment){if(!activity)return"Recorded cardio effort";const mi=miles(activity.distance_meters),larger=activity.distance_meters!=null&&activity.distance_meters>segment.distance_meters*1.08,type=activityType(activity);return larger&&mi?`${segment.segment_label} inside a ${mi.toFixed(1)} mi ${type}`:`Standalone ${type.toLowerCase()} effort`;}
-export default function CardioSegmentProgress(){
- const[segments,setSegments]=useState<Segment[]>([]),[activities,setActivities]=useState<Record<string,Activity>>({}),[loading,setLoading]=useState(true);
- useEffect(()=>{let active=true;(async()=>{const s=createSupabaseBrowserClient(),{data:{user}}=await s.auth.getUser();if(!user||!active){setLoading(false);return;}const{data:segmentRows}=await s.from("cardio_activity_segments").select("id,cardio_activity_id,segment_key,segment_label,distance_meters,duration_seconds,start_offset_seconds,end_offset_seconds").eq("athlete_user_id",user.id).order("created_at",{ascending:false}).limit(240);const rows=(segmentRows??[])as Segment[];if(!active)return;setSegments(rows);const ids=[...new Set(rows.map(r=>r.cardio_activity_id))];if(ids.length){const{data:activityRows}=await s.from("cardio_activities").select("id,activity_name,started_at,distance_meters,duration_seconds").in("id",ids);if(active)setActivities(Object.fromEntries(((activityRows??[])as Activity[]).map(r=>[r.id,r])));}if(active)setLoading(false);})();return()=>{active=false}},[]);
- const groups=useMemo(()=>{const map=new Map<string,Segment[]>();for(const segment of segments){const activity=activities[segment.cardio_activity_id],type=activityType(activity).toLowerCase(),key=`${type}:${segment.segment_key}`,list=map.get(key)??[];list.push(segment);map.set(key,list);}return[...map.entries()].map(([key,list])=>{const chronological=[...list].sort((a,b)=>new Date(activities[b.cardio_activity_id]?.started_at??0).getTime()-new Date(activities[a.cardio_activity_id]?.started_at??0).getTime()),latest=chronological[0],previous=chronological[1]??null,best=[...list].sort((a,b)=>Number(a.duration_seconds)-Number(b.duration_seconds))[0],latestActivity=activities[latest.cardio_activity_id];return{key,type:activityType(latestActivity).toLowerCase(),label:benchmarkLabel(latestActivity,latest),latest,previous,best,count:list.length};}).sort((a,b)=>a.latest.distance_meters-b.latest.distance_meters);},[segments,activities]);
- if(loading||groups.length===0)return null;
- return <section className="mx-auto mb-8 w-full max-w-2xl px-4 sm:px-6"><div className="rounded-3xl border border-[#ff0032]/30 bg-[#ff0032]/5 p-5"><p className="text-[10px] font-black uppercase tracking-[.2em] text-[#ff0032]">CARDIO PROGRESSION V2</p><h2 className="mt-2 text-2xl font-black">Comparable efforts inside every activity.</h2><p className="mt-2 text-sm leading-6 text-zinc-400">PHATBOT turns standard distances into activity-specific benchmarks, even when they happen inside a longer workout. Runs compare with runs, walks with walks, and rides with rides.</p><div className="mt-5 grid gap-3">{groups.map(group=>{const latestActivity=activities[group.latest.cardio_activity_id],bestActivity=activities[group.best.cardio_activity_id],delta=group.previous?Number(group.previous.duration_seconds)-Number(group.latest.duration_seconds):null;return <Link href={`/progress/activity/benchmark/${encodeURIComponent(group.type)}/${encodeURIComponent(group.latest.segment_key)}`} key={group.key} className="block rounded-2xl border border-zinc-800 bg-black/10 p-4 transition hover:border-[#ff0032]/60"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.16em] text-zinc-500">{group.label}</p><p className="mt-1 text-3xl font-black">{clock(Number(group.latest.duration_seconds))}</p><p className="mt-1 text-xs text-zinc-500">{parentLabel(latestActivity,group.latest)}</p></div><div className="text-right"><p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">BEST</p><p className="mt-1 text-lg font-black text-[#ff0032]">{clock(Number(group.best.duration_seconds))}</p><p className="mt-1 text-[10px] text-zinc-600">{bestActivity?new Date(bestActivity.started_at).toLocaleDateString():""}</p></div></div>{delta!==null?<p className={`mt-3 text-sm font-bold ${delta>0?"text-[#ff0032]":"text-zinc-400"}`}>{delta>1?`${clock(delta)} faster than the previous ${group.label}.`:delta < -1?`${clock(Math.abs(delta))} slower than the previous ${group.label}.`:"Essentially matched the previous effort."}</p>:<p className="mt-3 text-sm text-zinc-500">Baseline established. The next comparable {group.label.toLowerCase()} creates a trend.</p>}<div className="mt-2 flex items-center justify-between"><p className="text-[10px] uppercase tracking-wide text-zinc-600">{group.count} comparable effort{group.count===1?"":"s"} recorded</p><p className="text-[10px] font-black uppercase tracking-wide text-[#ff0032]">View trend →</p></div></Link>})}</div></div></section>;
+export default function CardioSegmentProgress() {
+  const [segments, setSegments] = useState<CardioSegmentRow[]>([]);
+  const [activities, setActivities] = useState<Record<string, CardioActivityRow>>({});
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const supabase = createSupabaseBrowserClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !active) { setLoading(false); return; }
+      try {
+        const result = await loadComparableEffortData(supabase, user.id);
+        if (!active) return;
+        setSegments(result.segments);
+        setActivities(result.activities);
+      } catch {
+        if (active) setFailed(true);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const groups = useMemo(() => buildComparableEffortGroups(segments, activities), [segments, activities]);
+  const selected = groups.find((group) => group.key === selectedKey) ?? groups[0] ?? null;
+
+  if (loading) return <section className="rounded-3xl border border-zinc-800 p-5"><p className="text-sm text-zinc-500">Loading comparable cardio efforts…</p></section>;
+  if (failed) return <section className="rounded-3xl border border-[#ff0032]/30 bg-[#ff0032]/5 p-5"><p className="font-black">Cardio trends are temporarily unavailable.</p><p className="mt-2 text-sm text-zinc-400">Your saved activity is safe. Try refreshing this page.</p></section>;
+  if (!selected) return <section className="rounded-3xl border border-zinc-800 p-5"><p className="font-black">No comparable efforts yet.</p><p className="mt-2 text-sm leading-6 text-zinc-500">Complete a standard run or walk distance to establish your first activity-specific benchmark.</p></section>;
+
+  return <section>
+    <div className="rounded-3xl border border-[#ff0032]/30 bg-[#ff0032]/5 p-5">
+      <p className="text-[10px] font-black uppercase tracking-[.2em] text-[#ff0032]">Cardio progression</p>
+      <h2 className="mt-2 text-2xl font-black">Your comparable efforts</h2>
+      <p className="mt-2 text-sm leading-6 text-zinc-400">Choose an activity and distance. Runs compare with runs, walks with walks, including matching segments inside longer workouts.</p>
+      <div className="-mx-1 mt-4 flex gap-2 overflow-x-auto px-1 pb-2" aria-label="Comparable cardio efforts">
+        {groups.map((group) => <button type="button" key={group.key} onClick={() => setSelectedKey(group.key)} aria-pressed={selected.key === group.key} className={`shrink-0 rounded-full border px-4 py-2 text-sm font-black transition ${selected.key === group.key ? "border-[#ff0032] bg-[#ff0032] text-white" : "border-zinc-700 bg-black/20 text-zinc-300"}`}>
+          {group.displayLabel} <span className="ml-1 opacity-60">{group.efforts.length}</span>
+        </button>)}
+      </div>
+    </div>
+    <CardioTrendPanel group={selected} />
+  </section>;
 }
