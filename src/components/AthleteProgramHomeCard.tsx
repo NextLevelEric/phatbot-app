@@ -4,6 +4,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import {
+  programHomeState,
+  programLaunchName,
+  selectCurrentProgramLaunch,
+  type ProgramLaunchRow,
+  type VisibleProgramLaunch,
+} from "@/features/programs/programLaunch";
+import {
   assignmentSourceLabel,
   buildNextProgramWorkout,
   formatProgramStartDate,
@@ -27,6 +34,7 @@ export default function AthleteProgramHomeCard({
   const [assignment, setAssignment] = useState<ProgramAssignment | null>(null);
   const [scheduled, setScheduled] = useState<ProgramAssignment | null>(null);
   const [nextWorkout, setNextWorkout] = useState<NextProgramWorkout | null>(null);
+  const [launch, setLaunch] = useState<VisibleProgramLaunch | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [starting, setStarting] = useState(false);
   const [message, setMessage] = useState("");
@@ -35,9 +43,15 @@ export default function AthleteProgramHomeCard({
     let mounted = true;
     const supabase = createSupabaseBrowserClient();
     void (async () => {
-      const [assignmentResult, nextResult] = await Promise.all([
+      const [assignmentResult, nextResult, launchResult] = await Promise.all([
         supabase.rpc("get_athlete_program_assignments", { p_athlete_user_id: userId }),
         supabase.rpc("get_next_program_workout", { p_athlete_user_id: userId }),
+        supabase.from("program_launches")
+          .select("id,program_id,launch_at,status,headline,summary,training_programs!inner(name,program_families!inner(name))")
+          .eq("status", "active")
+          .lte("launch_at", new Date().toISOString())
+          .order("launch_at", { ascending: false })
+          .limit(1),
       ]);
       if (!mounted) return;
       if (assignmentResult.error || nextResult.error) {
@@ -47,6 +61,9 @@ export default function AthleteProgramHomeCard({
         setAssignment(history.find((item) => item.assignment_status === "active") ?? null);
         setScheduled(history.find((item) => item.assignment_status === "scheduled") ?? null);
         setNextWorkout(buildNextProgramWorkout((nextResult.data ?? []) as NextProgramWorkoutRow[]));
+        setLaunch(launchResult.error
+          ? null
+          : selectCurrentProgramLaunch((launchResult.data ?? []) as ProgramLaunchRow[]));
       }
       setLoading(false);
     })();
@@ -90,9 +107,25 @@ export default function AthleteProgramHomeCard({
     return <section className="rounded-3xl border border-amber-700/50 bg-amber-950/10 p-5"><p className="text-xs font-black uppercase tracking-[.2em] text-amber-400">Program unavailable</p><p className="mt-2 text-sm text-zinc-300">{friendlyProgramError("load")}</p><Link href="/workouts" className="mt-4 inline-flex rounded-xl border border-zinc-700 px-4 py-3 text-sm font-black">Use my workouts</Link></section>;
   }
 
-  if (!assignment) {
-    return <section className="rounded-3xl border border-zinc-800 bg-gradient-to-b from-zinc-900 to-black p-5 shadow-xl sm:p-6"><p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">Choose your program</p><h2 className="mt-2 text-2xl font-black">What are you training next?</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Pick a PHATBOT program or keep training with your own workouts. A program is optional.</p>{scheduled && <Link href="/programs/current" className="mt-4 block rounded-xl border border-[#ff0032]/40 bg-[#ff0032]/5 p-4"><span className="text-[11px] font-black uppercase tracking-[.16em] text-[#ff0032]">Program scheduled</span><span className="mt-1 block font-black">{scheduled.program_family_name}</span><span className="mt-1 block text-sm text-zinc-400">Starts {formatProgramStartDate(scheduled.started_at)}</span></Link>}<div className="mt-5 grid gap-3 sm:grid-cols-2"><Link href="/programs" className="rounded-2xl bg-[#ff0032] px-5 py-4 text-center font-black text-white">Browse Programs</Link><Link href="/workouts" className="rounded-2xl border border-zinc-700 px-5 py-4 text-center font-black">Create / Use My Own Workouts</Link></div></section>;
+  const homeState = programHomeState({
+    hasActiveAssignment: Boolean(assignment),
+    hasScheduledAssignment: Boolean(scheduled),
+    hasVisibleLaunch: Boolean(launch),
+  });
+
+  if (homeState !== "active_assignment") {
+    if (homeState === "scheduled_assignment" && scheduled) {
+      return <section className="rounded-3xl border border-zinc-800 bg-gradient-to-b from-zinc-900 to-black p-5 shadow-xl sm:p-6"><p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">Program scheduled</p><h2 className="mt-2 text-2xl font-black">{scheduled.program_family_name}</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Starts {formatProgramStartDate(scheduled.started_at)}. Keep using your own workouts until then.</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><Link href="/programs/current" className="rounded-2xl bg-[#ff0032] px-5 py-4 text-center font-black text-white">View Scheduled Program</Link><Link href="/workouts" className="rounded-2xl border border-zinc-700 px-5 py-4 text-center font-black">Continue Current Training</Link></div></section>;
+    }
+
+    if (homeState === "launch" && launch) {
+      return <section className="relative overflow-hidden rounded-3xl border border-[#ff0032]/50 bg-gradient-to-br from-zinc-900 via-black to-[#240008] p-5 shadow-2xl sm:p-7"><div aria-hidden="true" className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-[#ff0032]/15 blur-3xl"/><div className="relative"><p className="text-xs font-black uppercase tracking-[.22em] text-[#ff0032]">{launch.headline || "New program available"}</p><h2 className="mt-2 text-2xl font-black">{programLaunchName(launch)}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-zinc-300">{launch.summary || "A new PHATBOT training block is ready when you are."}</p><Link href={`/programs/${launch.program_id}`} className="mt-5 inline-flex w-full justify-center rounded-2xl bg-[#ff0032] px-5 py-4 font-black text-white sm:w-auto">View Program</Link><div className="mt-5 border-t border-zinc-800 pt-4"><p className="text-sm font-bold text-zinc-300">Happy with what you&apos;re doing? Keep going.</p><div className="mt-2 flex flex-wrap gap-x-5 gap-y-2"><Link href="/workouts" className="text-sm font-black text-zinc-400">Continue current training →</Link><Link href="/programs" className="text-sm font-black text-zinc-400">Browse all programs →</Link></div></div></div></section>;
+    }
+
+    return <section className="rounded-3xl border border-zinc-800 bg-gradient-to-b from-zinc-900 to-black p-5 shadow-xl sm:p-6"><p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">Choose your program</p><h2 className="mt-2 text-2xl font-black">What are you training next?</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Pick a PHATBOT program or keep training with your own workouts. A program is optional.</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><Link href="/programs" className="rounded-2xl bg-[#ff0032] px-5 py-4 text-center font-black text-white">Browse Programs</Link><Link href="/workouts" className="rounded-2xl border border-zinc-700 px-5 py-4 text-center font-black">Create / Use My Own Workouts</Link></div></section>;
   }
+
+  if (!assignment) return null;
 
   const review = reviewDateStatus(assignment.review_due_at);
   const hasReadyWorkout = Boolean(nextWorkout && nextWorkout.exercises.length > 0);
