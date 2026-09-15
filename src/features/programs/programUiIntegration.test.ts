@@ -5,6 +5,7 @@ const read = (path: string) => readFileSync(path, "utf8").replace(/\s+/g, " ").t
 const home = read("src/components/AthleteProgramHomeCard.tsx");
 const homePage = read("src/app/page.tsx");
 const catalog = read("src/app/programs/page.tsx");
+const preview = read("src/app/programs/[programId]/page.tsx");
 const detail = read("src/app/programs/current/page.tsx");
 const coach = read("src/components/CoachAthleteProgramSection.tsx");
 const workoutsLayout = read("src/app/workouts/layout.tsx");
@@ -43,16 +44,39 @@ describe("program management UI integration", () => {
     expect(catalog).not.toContain("first day in the gym\",");
   });
 
-  it("uses authoritative athlete selection and confirms history-preserving switches", () => {
-    expect(catalog).toContain('rpc("assign_program_to_athlete"');
-    expect(catalog).toContain('p_source_type: "athlete_selected"');
-    expect(catalog).toContain("your current program history will be preserved");
-    expect(catalog).toContain("your new program starts at its first workout");
+  it("previews before using authoritative athlete selection and preserves history", () => {
+    expect(catalog).toContain('href={`/programs/${program.id}`}');
+    expect(catalog).not.toContain('rpc("assign_program_to_athlete"');
+    expect(preview).toContain('rpc("assign_program_to_athlete"');
+    expect(preview).toContain('p_source_type: "athlete_selected"');
+    expect(preview).toContain("your workout history will be preserved");
+    expect(preview).toContain("switch programs?");
   });
 
-  it("treats coach-assigned programs as coach managed", () => {
-    expect(catalog).toContain('active?.source_type === "coach_assigned"');
-    expect(catalog).toContain("coach managed");
+  it("lets coach-assigned athletes browse and voluntarily switch", () => {
+    expect(catalog).toContain('active.source_type === "coach_assigned"');
+    expect(catalog).toContain("you can still choose another program");
+    expect(catalog).not.toContain("coach managed");
+    expect(preview).not.toContain('active?.source_type === "coach_assigned"');
+  });
+
+  it("keeps scheduled coach assignments visible and does not expose cancellation", () => {
+    expect(catalog).toContain('assignment_status === "scheduled"');
+    expect(catalog).toContain("will not cancel this scheduled assignment");
+    expect(preview).toContain("will remain scheduled");
+    expect(`${catalog} ${preview}`).not.toContain("cancel_scheduled_program_for_athlete");
+  });
+
+  it("loads visible launches without creating assignments on Home or preview", () => {
+    expect(home).toContain('.from("program_launches")');
+    expect(home).toContain("programhomestate");
+    expect(home).not.toContain('rpc("assign_program_to_athlete"');
+    expect(preview).not.toContain("useeffect(() => { rpc(");
+  });
+
+  it("keeps legacy coach-imported workout access intact", () => {
+    expect(homePage).toContain("assigned by your coach");
+    expect(homePage).toContain("imported by coach");
   });
 
   it("shows rotation, next-day highlight, prescriptions, and assignment history", () => {
@@ -83,7 +107,7 @@ describe("program management UI integration", () => {
   });
 
   it("never changes sequencing from program management UI", () => {
-    const combined = `${home} ${catalog} ${detail} ${coach}`;
+    const combined = `${home} ${catalog} ${preview} ${detail} ${coach}`;
     expect(combined).not.toContain("next_program_day_id");
     expect(combined).not.toContain("program_sequence_advanced_at");
   });
