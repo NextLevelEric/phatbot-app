@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { RebuildDashboardStatus } from "@/components/RebuildDashboardStatus";
 import BodyweightQuickLog from "@/components/BodyweightQuickLog";
 import AthleteProgramHomeCard from "@/components/AthleteProgramHomeCard";
+import { startStartupAttempt, StartupTimeoutError } from "@/features/auth/startupAttempt";
 
 type Profile = { display_name: string | null };
 type WorkoutTemplate = { id: string; name: string; description: string | null; created_at: string; sort_order: number | null };
@@ -47,18 +48,29 @@ export default function HomePage() {
 
   useEffect(() => {
     let mounted = true;
-    const supabase = createSupabaseBrowserClient();
+    let cancelLoad = () => {};
+    let reloadTimer: ReturnType<typeof setTimeout> | undefined;
+    let supabase: ReturnType<typeof createSupabaseBrowserClient>;
+    try {
+      supabase = createSupabaseBrowserClient();
+    } catch {
+      console.error("PHATBOT Home startup failed: public configuration unavailable");
+      setLoadError("PHATBOT couldn't start. Please try again or contact support.");
+      setLoading(false);
+      return;
+    }
 
-    async function load() {
+    function load() {
+      cancelLoad();
       if (mounted) {
         setLoading(true);
         setLoadError(null);
       }
 
-      try {
+      cancelLoad = startStartupAttempt(async (signal) => {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (sessionError) throw sessionError;
-        if (!mounted) return;
+        if (!mounted || signal.aborted) return;
 
         if (!session?.user) {
           setSignedIn(false);
@@ -72,26 +84,32 @@ export default function HomePage() {
         setUserId(user.id);
 
         const [profileResult, templatesResult, latestResult, activeResult, feedbackResult, plateauResult, readsResult] = await Promise.all([
-          supabase.from("profiles").select("display_name").eq("id", user.id).single(),
-          supabase.from("workouts").select("id,name,description,created_at,sort_order").eq("athlete_user_id", user.id).eq("is_active", true).order("sort_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true }),
-          supabase.from("workout_sessions").select("id,workout_id,workout_name_snapshot,completed_at").eq("athlete_user_id", user.id).eq("status", "completed").order("completed_at", { ascending: false }).limit(1).maybeSingle(),
-          supabase.from("workout_sessions").select("id,workout_name_snapshot,started_at").eq("athlete_user_id", user.id).eq("status", "in_progress").order("started_at", { ascending: false }).limit(1).maybeSingle(),
-          supabase.from("coach_workout_feedback").select("workout_session_id,feedback,updated_at").eq("athlete_user_id", user.id).is("athlete_read_at", null).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
-          supabase.from("exercise_plateau_signals").select("exercise_id,exercise_name,consecutive_flat_sessions,change_percent").eq("athlete_user_id", user.id).eq("status", "active").order("consecutive_flat_sessions", { ascending: false }).limit(10),
-          supabase.from("athlete_signal_reads").select("signal_kind,signal_key").eq("athlete_user_id", user.id).eq("signal_kind", "training"),
+          supabase.from("profiles").select("display_name").abortSignal(signal).eq("id", user.id).single(),
+          supabase.from("workouts").select("id,name,description,created_at,sort_order").abortSignal(signal).eq("athlete_user_id", user.id).eq("is_active", true).order("sort_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true }),
+          supabase.from("workout_sessions").select("id,workout_id,workout_name_snapshot,completed_at").abortSignal(signal).eq("athlete_user_id", user.id).eq("status", "completed").order("completed_at", { ascending: false }).limit(1).maybeSingle(),
+          supabase.from("workout_sessions").select("id,workout_name_snapshot,started_at").abortSignal(signal).eq("athlete_user_id", user.id).eq("status", "in_progress").order("started_at", { ascending: false }).limit(1).maybeSingle(),
+          supabase.from("coach_workout_feedback").select("workout_session_id,feedback,updated_at").abortSignal(signal).eq("athlete_user_id", user.id).is("athlete_read_at", null).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+          supabase.from("exercise_plateau_signals").select("exercise_id,exercise_name,consecutive_flat_sessions,change_percent").abortSignal(signal).eq("athlete_user_id", user.id).eq("status", "active").order("consecutive_flat_sessions", { ascending: false }).limit(10),
+          supabase.from("athlete_signal_reads").select("signal_kind,signal_key").abortSignal(signal).eq("athlete_user_id", user.id).eq("signal_kind", "training"),
         ]);
+
+        if (!mounted || signal.aborted) return;
 
         const criticalError = templatesResult.error || latestResult.error || activeResult.error;
         if (criticalError) throw criticalError;
+        // Optional cards must not block Home, but failures remain diagnosable.
+        if (profileResult.error || feedbackResult.error || plateauResult.error || readsResult.error) {
+          console.warn("PHATBOT Home optional data unavailable");
+        }
 
         let feedback: CoachFeedback | null = null;
         if (feedbackResult.data) {
-          const { data: workout } = await supabase.from("workout_sessions").select("workout_name_snapshot").eq("id", feedbackResult.data.workout_session_id).eq("athlete_user_id", user.id).maybeSingle();
+          const { data: workout } = await supabase.from("workout_sessions").select("workout_name_snapshot").abortSignal(signal).eq("id", feedbackResult.data.workout_session_id).eq("athlete_user_id", user.id).maybeSingle();
           feedback = { ...feedbackResult.data, workout_name: workout?.workout_name_snapshot ?? null } as CoachFeedback;
         }
 
         const readKeys = new Set(((readsResult.data ?? []) as SignalRead[]).map((read) => read.signal_key));
-        if (!mounted) return;
+        if (!mounted || signal.aborted) return;
 
         setProfile(profileResult.data);
         setWorkoutTemplates((templatesResult.data ?? []) as WorkoutTemplate[]);
@@ -100,17 +118,22 @@ export default function HomePage() {
         setLatestCoachFeedback(feedback);
         setPlateauSignals(((plateauResult.data ?? []) as PlateauSignal[]).filter((signal) => !readKeys.has(trainingSignalKey(signal))).slice(0, 2));
         setLoading(false);
-      } catch (error) {
-        console.error("Dashboard load failed", error);
+      }, () => {}, (error) => {
+        console.error("PHATBOT Home startup failed", { reason: error instanceof StartupTimeoutError ? "timeout" : "request_failed" });
         if (mounted) {
           setLoadError("PHATBOT couldn't load your training data.");
           setLoading(false);
         }
-      }
+      });
     }
 
     void load();
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+      // The explicit load above owns initial hydration. Avoid duplicate requests.
+      if (event === "INITIAL_SESSION") return;
+      clearTimeout(reloadTimer);
+      cancelLoad();
       if (!session) {
         setSignedIn(false);
         setUserId(null);
@@ -119,11 +142,14 @@ export default function HomePage() {
         window.location.replace("/auth");
         return;
       }
-      void load();
+      // Leave the auth notification stack before calling auth methods again.
+      reloadTimer = setTimeout(load, 0);
     });
 
     return () => {
       mounted = false;
+      clearTimeout(reloadTimer);
+      cancelLoad();
       listener.subscription.unsubscribe();
     };
   }, []);
