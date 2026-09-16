@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { RebuildDashboardStatus } from "@/components/RebuildDashboardStatus";
 import BodyweightQuickLog from "@/components/BodyweightQuickLog";
 import AthleteProgramHomeCard from "@/components/AthleteProgramHomeCard";
+import WeeklyReportReadyCard from "@/components/WeeklyReportReadyCard";
 
 type Profile = { display_name: string | null };
 type WorkoutTemplate = { id: string; name: string; description: string | null; created_at: string; sort_order: number | null };
@@ -198,6 +199,8 @@ export default function HomePage() {
       </section>}
 
       {userId && <AthleteProgramHomeCard userId={userId} activeWorkout={activeWorkout} />}
+
+      {userId && <WeeklyReportReadyCard athleteUserId={userId} />}
 
       <BodyweightQuickLog />
 
