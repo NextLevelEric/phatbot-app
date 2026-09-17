@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const migrationPath = "supabase/migrations/20260916120623_sunday_weekly_progress_reports.sql";
+const migrationPath = "supabase/migrations/20260917121148_sunday_weekly_progress_reports.sql";
 const sql = readFileSync(migrationPath, "utf8");
 const normalized = sql.replace(/\s+/g, " ").toLowerCase();
 const weeklyPage = readFileSync("src/app/weekly/page.tsx", "utf8").toLowerCase();

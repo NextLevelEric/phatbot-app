@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { optionalDaysLabel, type ProgramDayOption } from "@/features/programs/optionalDays";
 import {
   assignmentSourceLabel,
   buildNextProgramWorkout,
@@ -50,6 +51,7 @@ export default function CoachAthleteProgramSection({ athleteId }: { athleteId: s
   const [showHistory, setShowHistory] = useState(false);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
+  const [dayOptions, setDayOptions] = useState<ProgramDayOption[]>([]);
 
   const load = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -59,6 +61,9 @@ export default function CoachAthleteProgramSection({ athleteId }: { athleteId: s
       supabase.from("program_families").select("id,name").eq("status", "active").or("source_type.eq.phatbot_stock,source_type.eq.coach").order("name"),
     ]);
     if (historyResult.error || nextResult.error || familiesResult.error) throw new Error("program load failed");
+    const optionsResult = await supabase.rpc("get_program_day_options", { p_athlete_user_id: athleteId });
+    setDayOptions(optionsResult.error ? [] : (optionsResult.data ?? []) as ProgramDayOption[]);
+    if (optionsResult.error) setMessage("Optional-day settings couldn't load. Refresh to view the athlete's configuration.");
     const assignments = (historyResult.data ?? []) as ProgramAssignment[];
     const active = assignments.find((assignment) => assignment.assignment_status === "active") ?? null;
     const scheduled = assignments.find((assignment) => assignment.assignment_status === "scheduled") ?? null;
@@ -176,6 +181,8 @@ export default function CoachAthleteProgramSection({ athleteId }: { athleteId: s
   if (loading) return <section className="rounded-2xl border border-zinc-800 p-5"><p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">Program</p><p className="mt-2 text-sm text-zinc-400">Loading assignment...</p></section>;
 
   return <section className="rounded-2xl border border-zinc-800 p-5">
+    {active && optionalDaysLabel(dayOptions, active.assignment_id) && <p className="mb-3 text-xs font-bold text-zinc-300">{optionalDaysLabel(dayOptions, active.assignment_id)} for this assignment</p>}
+    {scheduled && optionalDaysLabel(dayOptions, scheduled.assignment_id) && <p className="mb-3 text-xs font-bold text-zinc-300">Scheduled program: {optionalDaysLabel(dayOptions, scheduled.assignment_id)}</p>}
     <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">Current Program</p><h2 className="mt-1 text-xl font-black">{active ? `${active.program_family_name} v${active.version_number}` : "No program assigned"}</h2>{active && <><p className="mt-1 text-sm text-zinc-400">{assignmentSourceLabel(active)} · Assigned {formatAssignmentDate(active.started_at)}</p><p className={`mt-2 text-sm font-bold ${review.isDue ? "text-amber-300" : "text-zinc-500"}`}>{review.label}</p></>}</div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setShowForm((value) => !value)} className="rounded-xl bg-[#ff0032] px-4 py-3 text-sm font-black text-white">{active ? "Change Current Program" : "Assign Current Program"}</button><button type="button" onClick={() => setShowScheduleForm((value) => !value)} className="rounded-xl border border-zinc-700 px-4 py-3 text-sm font-black">{scheduled ? "Change Scheduled Program" : "Schedule Next Program"}</button></div></div>
     {active && <div className="mt-4 rounded-xl bg-zinc-950 p-4"><p className="text-[11px] font-black uppercase tracking-[.16em] text-zinc-500">Next workout</p><p className="mt-1 font-black">{next?.dayName ?? "Next workout unavailable"}</p>{next && <p className="mt-1 text-sm text-zinc-400">{next.exercises.length} exercise{next.exercises.length === 1 ? "" : "s"}</p>}<details className="mt-3"><summary className="cursor-pointer text-sm font-black text-zinc-300">View prescriptions</summary><div className="mt-2">{next?.exercises.map((exercise) => <div key={`${exercise.position}-${exercise.name}`} className="flex items-start justify-between gap-4 border-t border-zinc-900 py-2 text-sm"><span>{exercise.name}</span><span className="text-right text-zinc-500">{formatPrescriptionTargets(exercise.targets)}</span></div>)}</div></details></div>}
     {scheduled && <div className="mt-4 rounded-xl border border-[#ff0032]/40 bg-[#ff0032]/5 p-4"><p className="text-[11px] font-black uppercase tracking-[.16em] text-[#ff0032]">Up Next</p><p className="mt-1 font-black">{scheduled.program_family_name} <span className="text-xs text-zinc-500">v{scheduled.version_number}</span></p><p className="mt-1 text-sm text-zinc-400">Starts {formatProgramStartDate(scheduled.started_at)}</p><p className="mt-1 text-xs text-zinc-500">{scheduled.review_due_at ? reviewDateStatus(scheduled.review_due_at).label : "No review scheduled"}</p></div>}

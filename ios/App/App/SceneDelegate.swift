@@ -1,11 +1,35 @@
 import UIKit
 import Capacitor
+import WebKit
+import OSLog
 
 final class PHATBOTBridgeViewController: CAPBridgeViewController {
+    private var loadingObservation: NSKeyValueObservation?
+    private var loadDeadline: Timer?
+    private let launchLog = Logger(subsystem: "com.nextleveldigitalmedia.phatbot", category: "Launch")
+
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
         bridge?.registerPluginInstance(HealthKitPlugin())
         bridge?.registerPluginInstance(PHATBOTMediaPlugin())
+        // Keep Capacitor's navigation delegate (including errorPath and links).
+        // A stalled remote document must not leave the native shell blank.
+        loadingObservation = webView?.observe(\.isLoading, options: [.new]) { [weak self] webView, _ in
+            self?.loadDeadline?.invalidate()
+            guard webView.isLoading else { return }
+            self?.loadDeadline = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { [weak self, weak webView] _ in
+                guard let self, let webView, webView.isLoading,
+                      let errorURL = self.bridge?.config.errorPathURL else { return }
+                self.launchLog.error("Remote document load exceeded launch deadline")
+                webView.stopLoading()
+                webView.load(URLRequest(url: errorURL))
+            }
+        }
+    }
+
+    deinit {
+        loadDeadline?.invalidate()
+        loadingObservation?.invalidate()
     }
 }
 

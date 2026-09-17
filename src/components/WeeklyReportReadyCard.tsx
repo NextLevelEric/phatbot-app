@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { startStartupAttempt } from "@/features/auth/startupAttempt";
 
 type ReadyReport = { id: string; finalized_at: string; report_payload: { summary?: { headline?: string } } };
 
@@ -10,16 +11,26 @@ export default function WeeklyReportReadyCard({ athleteUserId }: { athleteUserId
   const [report, setReport] = useState<ReadyReport | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-    async function load() {
-      const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
+    const visibleForMs = 72 * 60 * 60 * 1000;
+    let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+    setReport(null);
+    // This secondary card owns its read; it never joins Home's startup gate or
+    // finalizes reports. Missing schema, offline requests and timeouts hide it.
+    const cancel = startStartupAttempt(async (signal) => {
+      const cutoff = new Date(Date.now() - visibleForMs).toISOString();
       const { data, error } = await createSupabaseBrowserClient().from("weekly_progress_reports")
-        .select("id,finalized_at,report_payload").eq("athlete_user_id", athleteUserId)
+        .select("id,finalized_at,report_payload").abortSignal(signal).eq("athlete_user_id", athleteUserId)
         .gte("finalized_at", cutoff).order("finalized_at", { ascending: false }).limit(1).maybeSingle();
-      if (mounted && !error) setReport(data as unknown as ReadyReport | null);
-    }
-    void load();
-    return () => { mounted = false; };
+      if (error) throw error;
+      return data as unknown as ReadyReport | null;
+    }, (ready) => {
+      if (!ready) return;
+      const remainingMs = new Date(ready.finalized_at).getTime() + visibleForMs - Date.now();
+      if (!Number.isFinite(remainingMs) || remainingMs <= 0) return;
+      setReport(ready);
+      expiryTimer = setTimeout(() => setReport(null), remainingMs);
+    }, () => { setReport(null); });
+    return () => { cancel(); clearTimeout(expiryTimer); };
   }, [athleteUserId]);
 
   if (!report) return null;

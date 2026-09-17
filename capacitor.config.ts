@@ -7,6 +7,7 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://app.phatbotfit.com',
     cleartext: false,
+    errorPath: 'index.html',
   },
   ios: {
     contentInset: 'automatic',
