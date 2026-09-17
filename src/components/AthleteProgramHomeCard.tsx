@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import OptionalProgramDayActions from "@/components/OptionalProgramDayActions";
+import { findDayOption, type ProgramDayOption } from "@/features/programs/optionalDays";
 import {
   programHomeState,
   programLaunchName,
@@ -38,6 +40,7 @@ export default function AthleteProgramHomeCard({
   const [loadFailed, setLoadFailed] = useState(false);
   const [starting, setStarting] = useState(false);
   const [message, setMessage] = useState("");
+  const [dayOptions, setDayOptions] = useState<ProgramDayOption[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -53,7 +56,10 @@ export default function AthleteProgramHomeCard({
           .order("launch_at", { ascending: false })
           .limit(1),
       ]);
+      const optionsResult = await supabase.rpc("get_program_day_options", { p_athlete_user_id: userId });
       if (!mounted) return;
+      setDayOptions(optionsResult.error ? [] : (optionsResult.data ?? []) as ProgramDayOption[]);
+      if (optionsResult.error) setMessage("Optional-day settings couldn't load. Refresh before choosing an optional session.");
       if (assignmentResult.error || nextResult.error) {
         setLoadFailed(true);
       } else {
@@ -129,12 +135,14 @@ export default function AthleteProgramHomeCard({
 
   const review = reviewDateStatus(assignment.review_due_at);
   const hasReadyWorkout = Boolean(nextWorkout && nextWorkout.exercises.length > 0);
+  const nextOption = nextWorkout ? findDayOption(dayOptions, nextWorkout.assignmentId, nextWorkout.dayId) : null;
   return <section className="overflow-hidden rounded-3xl border border-[rgba(255,0,50,.42)] bg-gradient-to-b from-zinc-900 to-black p-5 shadow-2xl sm:p-7">
     <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">Your program</p><h2 className="mt-2 text-xl font-black">{assignment.program_family_name}</h2><p className="mt-1 text-xs text-zinc-500">v{assignment.version_number} · {assignmentSourceLabel(assignment)}</p></div><Link href="/programs/current" className="shrink-0 text-sm font-black text-zinc-300">Details →</Link></div>
     {hasReadyWorkout && nextWorkout ? <div className="mt-5 rounded-2xl border border-zinc-800 bg-black/50 p-4"><p className="text-[11px] font-black uppercase tracking-[.18em] text-zinc-500">Next workout</p><p className="mt-2 text-2xl font-black">{nextWorkout.dayName}</p><p className="mt-1 text-sm text-zinc-400">{nextWorkout.exercises.length} exercise{nextWorkout.exercises.length === 1 ? "" : "s"}</p></div> : <div className="mt-5 rounded-2xl border border-amber-800/50 p-4"><p className="font-black text-amber-300">Next workout unavailable</p><p className="mt-1 text-sm text-zinc-400">Your assignment is safe. Try again before starting.</p></div>}
     <p className={`mt-3 text-xs font-bold ${review.isDue ? "text-amber-300" : "text-zinc-500"}`}>{review.label}</p>
     {scheduled && <Link href="/programs/current" className="mt-3 block text-xs font-bold text-zinc-400">New program starts {formatProgramStartDate(scheduled.started_at)} →</Link>}
-    {activeWorkout ? <p className="mt-4 rounded-xl border border-zinc-800 px-4 py-3 text-sm text-zinc-400">Your next program workout will wait while <span className="font-bold text-zinc-200">{activeWorkout.workout_name_snapshot}</span> is in progress.</p> : <button type="button" onClick={() => void startNextWorkout()} disabled={!hasReadyWorkout || starting} className="mt-5 w-full rounded-2xl bg-[#ff0032] px-5 py-4 font-black text-white disabled:opacity-50">{starting ? "Starting workout..." : "Start Next Workout"}</button>}
+    {nextOption?.is_optional && <p className="mt-3 text-xs font-black uppercase tracking-[.18em] text-zinc-300">Day {nextOption.day_number} — Optional</p>}
+    {activeWorkout ? <p className="mt-4 rounded-xl border border-zinc-800 px-4 py-3 text-sm text-zinc-400">Your next program workout will wait while <span className="font-bold text-zinc-200">{activeWorkout.workout_name_snapshot}</span> is in progress.</p> : nextOption?.is_optional ? <OptionalProgramDayActions option={nextOption} disabled={!hasReadyWorkout} onSkipped={() => window.location.reload()} /> : <button type="button" onClick={() => void startNextWorkout()} disabled={!hasReadyWorkout || starting} className="mt-5 w-full rounded-2xl bg-[#ff0032] px-5 py-4 font-black text-white disabled:opacity-50">{starting ? "Starting workout..." : "Start Next Workout"}</button>}
     {message && <p role="alert" className="mt-3 text-sm text-amber-300">{message}</p>}
     <div className="mt-4 flex items-center justify-between gap-4 text-sm"><Link href="/programs/current" className="font-black text-zinc-300">View rotation</Link><Link href="/workouts" className="font-bold text-zinc-500">Other workouts</Link></div>
   </section>;
