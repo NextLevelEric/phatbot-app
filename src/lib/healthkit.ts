@@ -52,6 +52,10 @@ export function canUseNativeHealthKit() {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 }
 
+export async function isHealthKitAvailable() {
+  return canUseNativeHealthKit() && (await HealthKit.isAvailable()).available;
+}
+
 export async function requestHealthKitAccess() {
   if (!canUseNativeHealthKit()) return { authorized: false };
   return HealthKit.requestAuthorization();

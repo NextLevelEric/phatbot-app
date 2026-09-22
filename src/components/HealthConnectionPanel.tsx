@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { getNativeHealthProvider, requestNativeHealthAccess, type PhatbotHealthProvider } from "@/lib/health";
-import { syncNativeHealth } from "@/lib/healthSync";
-import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { syncNativeHealth, healthSyncSummary, healthSyncErrorMessage } from "@/lib/healthSync";
 
 type State = "idle" | "connecting" | "syncing";
 
@@ -16,6 +15,7 @@ function providerLabel(provider: PhatbotHealthProvider) {
 
 export default function HealthConnectionPanel() {
   const pathname = usePathname();
+  const busy = useRef(false);
   const [provider, setProvider] = useState<PhatbotHealthProvider>("none");
   const [state, setState] = useState<State>("idle");
   const [message, setMessage] = useState("");
@@ -29,45 +29,23 @@ export default function HealthConnectionPanel() {
 
   const label = providerLabel(provider);
 
-  async function connect() {
-    setState("connecting");
-    setMessage("");
+  async function sync(authorize = false) {
+    if (busy.current) return;
+    busy.current = true;
+    setState(authorize ? "connecting" : "syncing"); setMessage("");
     try {
-      const result = await requestNativeHealthAccess();
-      if (result.authorized) {
-        setMessage(`${label} connected. Sync when you're ready.`);
-      } else if ("requested" in result && result.requested) {
-        setMessage(`PHATBOT opened ${label} permissions. Allow the requested data, return to PHATBOT, then tap Sync Health Data.`);
-      } else {
-        setMessage(`${label} access was not granted.`);
-      }
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : `PHATBOT could not connect to ${label}.`);
-    } finally {
-      setState("idle");
-    }
-  }
-
-  async function sync() {
-    setState("syncing");
-    setMessage("");
-    try {
-      const result = await syncNativeHealth(14);
-      if (!result) {
-        setMessage(`${label} is not available yet. Connect it first, then try again.`);
-      } else {
-        const supabase = createSupabaseBrowserClient();
-        const { error: lifecycleError } = await supabase.rpc("phatbot_competition_lifecycle");
-        if (lifecycleError) {
-          console.error("PHATBOT could not refresh competition standings after health sync", lifecycleError);
+      if (authorize) {
+        const access = await requestNativeHealthAccess();
+        if (!access.authorized) {
+          setMessage(`Allow PHATBOT access in ${label}, return here, then tap Sync Health Data.`);
+          return;
         }
-        setMessage(`Beep boop. Synced ${result.dailyMetrics} days and ${result.workouts} workouts from ${label}. Cardio Bunny and Step King standings were refreshed.`);
       }
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : `PHATBOT could not sync ${label}.`);
-    } finally {
-      setState("idle");
-    }
+      setState("syncing");
+      const result = await syncNativeHealth(14);
+      setMessage(result ? healthSyncSummary(result) : `${label} is not available on this device.`);
+    } catch (error) { setMessage(healthSyncErrorMessage(error)); }
+    finally { busy.current = false; setState("idle"); }
   }
 
   return (
@@ -82,7 +60,7 @@ export default function HealthConnectionPanel() {
           </div>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => void connect()} disabled={state !== "idle"} className="rounded-xl border border-zinc-700 px-3 py-3 text-xs font-black disabled:opacity-50">
+          <button type="button" onClick={() => void sync(true)} disabled={state !== "idle"} className="rounded-xl border border-zinc-700 px-3 py-3 text-xs font-black disabled:opacity-50">
             {state === "connecting" ? "CONNECTING…" : `CONNECT ${label.toUpperCase()}`}
           </button>
           <button type="button" onClick={() => void sync()} disabled={state !== "idle"} className="rounded-xl bg-[#ff0032] px-3 py-3 text-xs font-black text-white disabled:opacity-50">
