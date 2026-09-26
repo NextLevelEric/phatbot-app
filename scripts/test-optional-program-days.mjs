@@ -65,6 +65,7 @@ try {
   await replay('20260913214500_program_review_date_management.sql');
   await replay('20260914134427_scheduled_future_program_assignments.sql');
   await replay('20260916210539_assignment_optional_program_days.sql');
+  await replay('20260926081759_flexible_program_days.sql');
   console.log('Program migration chain replayed; cron registration stubbed, no scheduler executed.');
 
   const athlete = '00000000-0000-0000-0000-000000000001';
@@ -92,7 +93,7 @@ try {
   const version = await program(1), secondVersion = await program(2);
   const assignment = await asUser(athlete, () => scalar("select (public.assign_program_to_athlete($1,$2,'athlete_selected')).id as value", [athlete, version.id]));
   const normalAssignment = await asUser(other, () => scalar("select (public.assign_program_to_athlete($1,$2,'athlete_selected')).id as value", [other, version.id]));
-  const state = async (id = assignment) => (await rows('select next_program_day_id,program_cursor_revision,optional_program_day_ids,status,started_at from public.athlete_program_enrollments where id=$1', [id]))[0];
+  const state = async (id = assignment) => (await rows('select next_program_day_id,program_cursor_revision,optional_program_day_ids,remaining_program_day_ids,status,started_at from public.athlete_program_enrollments where id=$1', [id]))[0];
   const setDay = async (day, id = assignment) => db.query('update public.athlete_program_enrollments set next_program_day_id=$1 where id=$2', [day, id]);
   const start = () => asUser(athlete, () => scalar('select public.start_my_next_program_workout() as value'));
   const startOptional = (id = assignment, day = version.days[5]) => asUser(athlete, () => scalar('select public.start_my_optional_program_workout($1,$2) as value', [id, day]));
@@ -267,6 +268,63 @@ try {
     await db.query("update public.athlete_program_enrollments set started_at=started_at+interval '1 day' where id=$1", [fixtureAssignments[0]]);
     await rejects(() => db.exec(approvedFixtureScript), /Scheduled assignment changed/);
     await db.exec('rollback');
+  });
+  const selected = (day, id = scheduled, revision) => asUser(athlete, async () => scalar(
+    'select public.start_my_selected_program_workout($1,$2,$3) as value',
+    [id, day, revision ?? (await state(id)).program_cursor_revision]
+  ));
+  await test('an ahead-of-order required day moves to today without dropping the due days', async () => {
+    const before = await state(scheduled);
+    const session = await selected(version.days[4]);
+    assert.equal(await scalar('select program_day_id as value from public.workout_sessions where id=$1', [session]), version.days[4]);
+    assert.deepEqual((await state(scheduled)).remaining_program_day_ids,
+      [version.days[4],version.days[0],version.days[1],version.days[2],version.days[3],version.days[5]]);
+    assert.equal((await state(scheduled)).next_program_day_id, version.days[4]);
+    await rejects(() => selected(version.days[1]), /position changed|Complete or cancel/);
+    await complete(session);
+    assert.equal((await state(scheduled)).next_program_day_id, version.days[0]);
+    assert.deepEqual((await state(scheduled)).remaining_program_day_ids,
+      [version.days[0],version.days[1],version.days[2],version.days[3],version.days[5]]);
+    assert.equal((await state(scheduled)).optional_program_day_ids.length, before.optional_program_day_ids.length);
+  });
+  await test('canceling a selected session never consumes a day, and a stale revision cannot reorder it', async () => {
+    const stale = (await state(scheduled)).program_cursor_revision;
+    const session = await selected(version.days[3]);
+    await asUser(athlete, () => db.query("update public.workout_sessions set status='cancelled' where id=$1", [session]));
+    const afterCancel = await state(scheduled);
+    assert.equal(afterCancel.next_program_day_id, version.days[3]);
+    assert.deepEqual(afterCancel.remaining_program_day_ids,
+      [version.days[3],version.days[0],version.days[1],version.days[2],version.days[5]]);
+    await rejects(() => selected(version.days[2], scheduled, stale), /position changed/);
+    assert.deepEqual(await state(scheduled), afterCancel);
+    await complete(await selected(version.days[3]));
+    assert.equal((await state(scheduled)).next_program_day_id, version.days[0]);
+  });
+  await test('optional skip follows the reordered queue and its label matches', async () => {
+    const active = await state(scheduled);
+    const session = await selected(version.days[5]);
+    await asUser(athlete, () => db.query("update public.workout_sessions set status='cancelled' where id=$1", [session]));
+    const options = await asUser(athlete, () => rows('select * from public.get_program_day_options()'));
+    const six = options.find(o => o.assignment_id === scheduled && o.day_number === 6);
+    assert.equal(six.following_day_number, 1);
+    assert.equal(await skip((await state(scheduled)).program_cursor_revision, scheduled), true);
+    assert.equal((await state(scheduled)).next_program_day_id, version.days[0]);
+    assert.deepEqual((await state(scheduled)).remaining_program_day_ids,
+      [version.days[0],version.days[1],version.days[2]]);
+    await rejects(() => selected(version.days[1], scheduled, active.program_cursor_revision), /position changed/);
+  });
+  await test('another athlete cannot reorder this assignment, or select a day in another version', async () => {
+    await rejects(() => asUser(other, () => scalar('select public.start_my_selected_program_workout($1,$2,$3) as value', [scheduled,version.days[1],0])), /Own active/);
+    await rejects(() => selected(secondVersion.days[0]), /does not belong/);
+    await rejects(() => asUser(null, () => scalar('select public.start_my_selected_program_workout($1,$2,$3) as value', [scheduled,version.days[1],0]), 'anon'), /permission denied/);
+  });
+  await test('the remaining reordered days each complete once, then the next cycle resets to Day 1', async () => {
+    for (const [index, day] of [0,1,2].entries()) {
+      assert.equal((await state(scheduled)).next_program_day_id, version.days[day]);
+      await complete(await selected(version.days[day]));
+      assert.equal((await state(scheduled)).next_program_day_id, index === 2 ? version.days[0] : version.days[day + 1]);
+    }
+    assert.deepEqual((await state(scheduled)).remaining_program_day_ids, []);
   });
   console.log(`All ${passed} disposable database integration scenarios passed.`);
 } finally { await db.close(); }
