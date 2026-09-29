@@ -24,17 +24,25 @@ final class HealthKitManager {
         guard isAvailable else { completion(.failure(HealthKitError.notAvailable)); return }
         let end = Date(); let start = Calendar.current.date(byAdding: .day, value: -max(days, 1), to: end) ?? end
         let group = DispatchGroup(); let lock = NSLock()
-        var payload: [String: Any] = ["startDate": iso(start), "endDate": iso(end)]; var capturedError: Error?
+        var payload: [String: Any] = ["startDate": iso(start), "endDate": iso(end)]
+        var readWarnings = [String]()
         func assign(_ key: String, _ value: Any) { lock.lock(); payload[key] = value; lock.unlock() }
-        func capture(_ error: Error) { lock.lock(); if capturedError == nil { capturedError = error }; lock.unlock() }
-        group.enter(); fetchLatestQuantity(.restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: start, end: end) { if case .success(let v) = $0 { assign("restingHeartRate", v as Any) } else if case .failure(let e) = $0 { capture(e) }; group.leave() }
-        group.enter(); fetchLatestQuantity(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: start, end: end) { if case .success(let v) = $0 { assign("hrvMs", v as Any) } else if case .failure(let e) = $0 { capture(e) }; group.leave() }
-        group.enter(); fetchCumulativeQuantity(.activeEnergyBurned, unit: .kilocalorie(), start: start, end: end) { if case .success(let v) = $0 { assign("activeEnergyKcal", v) } else if case .failure(let e) = $0 { capture(e) }; group.leave() }
-        group.enter(); fetchCumulativeQuantity(.stepCount, unit: .count(), start: start, end: end) { if case .success(let v) = $0 { assign("steps", v) } else if case .failure(let e) = $0 { capture(e) }; group.leave() }
-        group.enter(); fetchDailyMetrics(start: start, end: end) { if case .success(let v) = $0 { assign("dailyMetrics", v) } else if case .failure(let e) = $0 { capture(e) }; group.leave() }
-        group.enter(); fetchWorkouts(start: start, end: end) { if case .success(let v) = $0 { assign("workouts", v) } else if case .failure(let e) = $0 { capture(e) }; group.leave() }
-        group.enter(); fetchSleep(start: start, end: end) { if case .success(let v) = $0 { assign("sleep", v) } else if case .failure(let e) = $0 { capture(e) }; group.leave() }
-        group.notify(queue: .main) { capturedError.map { completion(.failure($0)) } ?? completion(.success(payload)) }
+        func warn(_ key: String, _ error: Error) {
+            lock.lock()
+            readWarnings.append("\(key): \(error.localizedDescription)")
+            lock.unlock()
+        }
+        group.enter(); fetchLatestQuantity(.restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: start, end: end) { if case .success(let v) = $0 { assign("restingHeartRate", v as Any) } else if case .failure(let e) = $0 { warn("resting heart rate", e) }; group.leave() }
+        group.enter(); fetchLatestQuantity(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: start, end: end) { if case .success(let v) = $0 { assign("hrvMs", v as Any) } else if case .failure(let e) = $0 { warn("heart rate variability", e) }; group.leave() }
+        group.enter(); fetchCumulativeQuantity(.activeEnergyBurned, unit: .kilocalorie(), start: start, end: end) { if case .success(let v) = $0 { assign("activeEnergyKcal", v) } else if case .failure(let e) = $0 { warn("active energy", e) }; group.leave() }
+        group.enter(); fetchCumulativeQuantity(.stepCount, unit: .count(), start: start, end: end) { if case .success(let v) = $0 { assign("steps", v) } else if case .failure(let e) = $0 { warn("steps", e) }; group.leave() }
+        group.enter(); fetchDailyMetrics(start: start, end: end) { if case .success(let v) = $0 { assign("dailyMetrics", v) } else if case .failure(let e) = $0 { warn("daily activity", e) }; group.leave() }
+        group.enter(); fetchWorkouts(start: start, end: end) { if case .success(let v) = $0 { assign("workouts", v) } else if case .failure(let e) = $0 { warn("workouts", e) }; group.leave() }
+        group.enter(); fetchSleep(start: start, end: end) { if case .success(let v) = $0 { assign("sleep", v) } else if case .failure(let e) = $0 { warn("sleep", e) }; group.leave() }
+        group.notify(queue: .main) {
+            if !readWarnings.isEmpty { payload["readWarnings"] = readWarnings }
+            completion(.success(payload))
+        }
     }
 
     private func fetchDailyMetrics(start: Date, end: Date, completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
@@ -85,12 +93,13 @@ final class HealthKitManager {
     }
 
     private func enrichWorkout(_ workout: HKWorkout, completion: @escaping (Result<[String: Any], Error>) -> Void) {
-        let group = DispatchGroup(); let lock = NSLock(); var distanceMeters: Double?; var averageHeartRate: Double?; var capturedError: Error?
+        let group = DispatchGroup(); let lock = NSLock(); var distanceMeters: Double?; var averageHeartRate: Double?
         let distanceIdentifier: HKQuantityTypeIdentifier? = { switch workout.workoutActivityType { case .running, .walking, .hiking: return .distanceWalkingRunning; case .cycling: return .distanceCycling; default: return nil } }()
-        if let distanceIdentifier { group.enter(); fetchCumulativeQuantity(distanceIdentifier, unit: .meter(), start: workout.startDate, end: workout.endDate) { lock.lock(); if case .success(let v) = $0 { distanceMeters = v } else if case .failure(let e) = $0 { capturedError = e }; lock.unlock(); group.leave() } }
-        group.enter(); fetchAverageQuantity(.heartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: workout.startDate, end: workout.endDate) { lock.lock(); if case .success(let v) = $0 { averageHeartRate = v } else if case .failure(let e) = $0 { capturedError = e }; lock.unlock(); group.leave() }
+        if let distanceIdentifier { group.enter(); fetchCumulativeQuantity(distanceIdentifier, unit: .meter(), start: workout.startDate, end: workout.endDate) { lock.lock(); if case .success(let v) = $0 { distanceMeters = v }; lock.unlock(); group.leave() } }
+        group.enter(); fetchAverageQuantity(.heartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: workout.startDate, end: workout.endDate) { lock.lock(); if case .success(let v) = $0 { averageHeartRate = v }; lock.unlock(); group.leave() }
         group.notify(queue: .global()) {
-            if let capturedError { completion(.failure(capturedError)); return }
+            // Distance and heart-rate enrichment are optional. A query failure
+            // must not discard an otherwise readable HealthKit workout.
             var row: [String: Any] = ["sourceWorkoutId": workout.uuid.uuidString, "activityType": workout.workoutActivityType.rawValue, "activityName": self.activityName(workout.workoutActivityType), "startDate": self.iso(workout.startDate), "endDate": self.iso(workout.endDate), "durationSeconds": workout.duration]
             if let energy = workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()) { row["activeEnergyKcal"] = energy }; if let distanceMeters { row["distanceMeters"] = distanceMeters }; if let averageHeartRate { row["averageHeartRateBpm"] = averageHeartRate }; completion(.success(row))
         }
