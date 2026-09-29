@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CardioSegmentProgress from "@/components/CardioSegmentProgress";
+import { getNativeHealthProvider, requestNativeHealthAccess, type PhatbotHealthProvider } from "@/lib/health";
+import { healthSyncErrorMessage, healthSyncSummary, syncNativeHealth } from "@/lib/healthSync";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 type DailyMetric = { metric_date: string; steps: number | null; active_energy_kcal: number | null };
@@ -23,11 +25,80 @@ function sevenDayStartTime() { const start = new Date(); start.setHours(0,0,0,0)
 
 export default function ActivityProgressPage() {
   const [days, setDays] = useState<DailyMetric[]>([]), [activities, setActivities] = useState<CardioActivity[]>([]), [loading, setLoading] = useState(true), [error, setError] = useState<string | null>(null);
-  useEffect(() => { async function load() { const supabase = createSupabaseBrowserClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) { window.location.href = "/auth"; return; } const [dailyResult, cardioResult] = await Promise.all([supabase.from("health_daily_metrics").select("metric_date,steps,active_energy_kcal").eq("athlete_user_id", user.id).order("metric_date", { ascending: false }).limit(30), supabase.from("cardio_activities").select("id,activity_name,activity_type,started_at,duration_seconds,distance_meters,active_energy_kcal,average_heart_rate_bpm").eq("athlete_user_id", user.id).order("started_at", { ascending: false }).limit(120)]); if (dailyResult.error || cardioResult.error) setError("PHATBOT couldn't load all activity history. Your saved data is safe. Try again."); setDays((dailyResult.data ?? []) as DailyMetric[]); setActivities((cardioResult.data ?? []) as CardioActivity[]); setLoading(false); } void load(); }, []);
+  const [provider, setProvider] = useState<PhatbotHealthProvider>("none");
+  const [connected, setConnected] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
+  const syncBusy = useRef(false);
+
+  async function loadActivity(userId: string) {
+    const supabase = createSupabaseBrowserClient();
+    const [dailyResult, cardioResult] = await Promise.all([
+      supabase.from("health_daily_metrics").select("metric_date,steps,active_energy_kcal").eq("athlete_user_id", userId).order("metric_date", { ascending: false }).limit(30),
+      supabase.from("cardio_activities").select("id,activity_name,activity_type,started_at,duration_seconds,distance_meters,active_energy_kcal,average_heart_rate_bpm").eq("athlete_user_id", userId).order("started_at", { ascending: false }).limit(120),
+    ]);
+    if (dailyResult.error || cardioResult.error) setError("PHATBOT couldn't load all activity history. Your saved data is safe. Try again.");
+    else setError(null);
+    setDays((dailyResult.data ?? []) as DailyMetric[]);
+    setActivities((cardioResult.data ?? []) as CardioActivity[]);
+    setLoading(false);
+  }
+
+  async function refreshFromDevice(userId: string, authorize = false) {
+    if (syncBusy.current) return;
+    syncBusy.current = true;
+    setSyncing(true);
+    setSyncMessage("");
+    try {
+      if (authorize) {
+        const access = await requestNativeHealthAccess();
+        if (!access.authorized) { setSyncMessage("Allow health access, then try syncing again."); return; }
+      }
+      const result = await syncNativeHealth(14);
+      if (!result) { setSyncMessage("Health data is unavailable on this device."); return; }
+      setSyncMessage(healthSyncSummary(result));
+      if (result.status === "synced") {
+        setConnected(true);
+        await loadActivity(userId);
+      }
+    } catch (reason) { setSyncMessage(healthSyncErrorMessage(reason)); }
+    finally { syncBusy.current = false; setSyncing(false); }
+  }
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const supabase = createSupabaseBrowserClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!active) return;
+      if (!user) { window.location.href = "/auth"; return; }
+      await loadActivity(user.id);
+      if (!active) return;
+      const nativeProvider = getNativeHealthProvider();
+      setProvider(nativeProvider);
+      if (nativeProvider === "none") return;
+      const { data, error: connectionError } = await supabase.from("athlete_health_connections")
+        .select("last_synced_at").eq("athlete_user_id", user.id).eq("provider", nativeProvider).maybeSingle();
+      if (!active) return;
+      if (connectionError) { setSyncMessage("Could not check health connection. You can still try syncing."); return; }
+      setConnected(Boolean(data));
+      if (data) await refreshFromDevice(user.id);
+    }
+    void load().catch(() => { if (active) { setLoading(false); setError("PHATBOT couldn't load activity history. Try again."); } });
+    return () => { active = false; };
+  }, []);
+
+  async function syncNow() {
+    const supabase = createSupabaseBrowserClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { window.location.href = "/auth"; return; }
+    await refreshFromDevice(user.id, !connected);
+  }
   const summary = useMemo(() => { const dayStart = sevenDayStartKey(), recent = days.filter((d) => d.metric_date >= dayStart && d.metric_date <= localDayKey(new Date())), stepDays = recent.filter((d) => d.steps != null), avgSteps = stepDays.length ? Math.round(stepDays.reduce((sum, d) => sum + Number(d.steps ?? 0), 0) / stepDays.length) : null, activity7 = activities.filter((a) => new Date(a.started_at).getTime() >= sevenDayStartTime()), cardio7 = activity7.filter(isCardioActivity), cardioMinutes = Math.round(cardio7.reduce((sum, a) => sum + Number(a.duration_seconds), 0) / 60); return { avgSteps, cardioCount: cardio7.length, cardioMinutes }; }, [days, activities]);
   if (loading) return <main className="mx-auto min-h-screen max-w-2xl px-6 py-12"><p className="text-xs font-black uppercase tracking-[.22em] text-[#ff0032]">PHATBOT Activity</p><h1 className="mt-2 text-3xl font-black">Reading the engine...</h1></main>;
   return <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-4 py-7 sm:px-6 sm:py-10">
     <header><p className="text-xs font-black uppercase tracking-[.22em] text-[#ff0032]">PHATBOT Activity</p><h1 className="mt-2 text-3xl font-black">How&apos;s the engine?</h1><p className="mt-2 text-zinc-400">Cardio, steps, pace, and efficiency without turning your watch into homework.</p></header>
+    {provider !== "none" && <section className="rounded-2xl border border-zinc-800 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-zinc-300">{syncing ? "Checking your latest health data..." : "Activity updates when this page opens."}</p><button type="button" disabled={syncing} onClick={() => void syncNow()} className="min-h-11 rounded-xl border border-zinc-600 px-4 py-2 text-sm font-bold disabled:opacity-50">{syncing ? "Syncing..." : connected ? "Sync now" : "Connect health data"}</button></div>{syncMessage && <p role="status" className="mt-3 text-sm text-zinc-400">{syncMessage}</p>}</section>}
     {error && <p className="rounded-xl border border-[#ff0032]/40 bg-[#ff0032]/5 p-4 text-sm">{error}</p>}
     <section className="grid grid-cols-3 gap-3"><div className="rounded-2xl border border-zinc-800 p-4"><p className="text-[11px] font-bold uppercase tracking-[.12em] text-zinc-500">Avg Steps</p><p className="mt-2 text-2xl font-black">{summary.avgSteps?.toLocaleString() ?? "—"}</p><p className="mt-1 text-xs text-zinc-600">7 days</p></div><div className="rounded-2xl border border-zinc-800 p-4"><p className="text-[11px] font-bold uppercase tracking-[.12em] text-zinc-500">Cardio</p><p className="mt-2 text-2xl font-black">{summary.cardioCount}</p><p className="mt-1 text-xs text-zinc-600">sessions</p></div><div className="rounded-2xl border border-zinc-800 p-4"><p className="text-[11px] font-bold uppercase tracking-[.12em] text-zinc-500">Minutes</p><p className="mt-2 text-2xl font-black">{summary.cardioMinutes}</p><p className="mt-1 text-xs text-zinc-600">cardio</p></div></section>
     <p className="text-sm leading-6 text-zinc-500">Standardized cardio benchmarks appear below. PHATBOT compares the same activity type and distance, including benchmark segments found inside longer workouts.</p>
