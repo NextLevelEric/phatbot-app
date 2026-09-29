@@ -9,7 +9,6 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 type Stage = "rebuild_started" | "baseline_established" | "rebuilding_progress" | "plateau_cleared";
 type RebuildRow = { exercise_id: string; exercise_name: string; stage: Stage; progress_from_rebuild_percent: number | null; recovery_to_pre_rebuild_percent: number | null; post_rebuild_sessions: number; };
-const HEALTH_CONNECTED_KEY = "phatbot.appleHealth.connected";
 const stageLabel: Record<Stage, string> = { rebuild_started: "REBUILD STARTED", baseline_established: "BASELINE ESTABLISHED", rebuilding_progress: "REBUILDING", plateau_cleared: "PLATEAU CLEARED" };
 function signedPercent(value: number | null) { if (value === null) return null; return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`; }
 function homeSummary(row: RebuildRow) { if (row.stage === "rebuild_started") return "Deliberate reset underway. Clean reps first, then build the load back up."; if (row.stage === "baseline_established") return "Rebuild baseline established. PHATBOT is watching the next sessions for repeatable progress."; if (row.stage === "rebuilding_progress") return row.post_rebuild_sessions < 2 ? "Progress is improving. PHATBOT is waiting for one more confirming session." : "Progress is moving in the right direction. Keep repeating clean, productive work."; return "The rebuild has cleared."; }
@@ -24,18 +23,36 @@ export function RebuildDashboardStatus() {
     healthSyncBusy.current = true;
     setHealthBusy(true); setHealthError(null); setSaved(null); setSnapshot(null);
     try {
-      if (requestAuthorization) { const authorization = await requestNativeHealthAccess(); if (!authorization.authorized) throw new Error("Apple Health access was not granted."); localStorage.setItem(HEALTH_CONNECTED_KEY, "1"); setHealthConnected(true); }
+      if (requestAuthorization) { const authorization = await requestNativeHealthAccess(); if (!authorization.authorized) throw new Error("Apple Health access was not granted."); }
       const result = await syncNativeHealth(14);
       if (!result) throw new Error("Health unavailable");
       setSaved(result);
-      if (result.status === "synced") { setSnapshot(result.snapshot); setHealthConnected(true); localStorage.setItem(HEALTH_CONNECTED_KEY, "1"); }
+      if (result.status === "synced") { setSnapshot(result.snapshot); setHealthConnected(true); }
+      else setHealthError(healthSyncSummary(result));
     } catch (error) { setHealthError(healthSyncErrorMessage(error)); }
     finally { healthSyncBusy.current = false; setHealthBusy(false); }
   }
 
   useEffect(() => { let cancelled = false;
     async function load() { const supabase = createSupabaseBrowserClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user || cancelled) return; const { data, error } = await supabase.from("exercise_rebuild_progress").select("exercise_id,exercise_name,stage,progress_from_rebuild_percent,recovery_to_pre_rebuild_percent,post_rebuild_sessions,updated_at").eq("athlete_user_id", user.id).neq("stage", "plateau_cleared").order("updated_at", { ascending: false }).limit(3); if (!error && !cancelled) setRows((data ?? []) as RebuildRow[]); }
-    async function detectHealthKit() { try { const available = await isHealthKitAvailable(); if (cancelled) return; setHealthAvailable(available); if (available && localStorage.getItem(HEALTH_CONNECTED_KEY) === "1") { setHealthConnected(true); void syncAppleHealth(false); } } catch (error) { console.error("HealthKit availability check failed", error); } }
+    async function detectHealthKit() { try {
+      const available = await isHealthKitAvailable();
+      if (cancelled) return;
+      setHealthAvailable(available);
+      if (!available) return;
+      const supabase = createSupabaseBrowserClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: connection } = await supabase.from("athlete_health_connections")
+        .select("last_synced_at").eq("athlete_user_id", user.id).eq("provider", "apple_health").maybeSingle();
+      if (cancelled) return;
+      // A browser-local flag is shared across sign-ins on this device; only
+      // the signed-in athlete's saved connection can enable background sync.
+      if (connection) {
+        setHealthConnected(true);
+        void syncAppleHealth(false);
+      }
+    } catch (error) { console.error("HealthKit availability check failed", error); } }
     void load(); void detectHealthKit(); return () => { cancelled = true; };
   }, []);
 
