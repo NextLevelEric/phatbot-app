@@ -103,8 +103,9 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
     for (const row of daily) if (!/^\d{4}-\d{2}-\d{2}$/.test(row.metric_date) || !validDate(row.metric_date) || new Date(row.metric_date).toISOString().slice(0,10) !== row.metric_date) throw new Error('Invalid native day');
     // HealthKit conceals read denial as empty results/zero aggregates. Do not
     // overwrite history or stamp success on an entirely unreadable snapshot.
+    const nativeWarnings = (snapshot.readWarnings ?? []).map(warning => `Health read warning: ${warning}`);
     const hasReadableData = workouts.length > 0 || daily.some(row => [row.steps,row.active_energy_kcal,row.sleep_seconds,row.resting_heart_rate_bpm,row.hrv_ms].some(value => (value ?? 0) > 0));
-    if (!hasReadableData) return { ...saved, provider:snapshot.provider, status:'empty', syncedAt:null, warnings:[], snapshot };
+    if (!hasReadableData) return { ...saved, provider:snapshot.provider, status:'empty', syncedAt:null, warnings:nativeWarnings, snapshot };
 
     stage = 'daily records';
     if (daily.length) {
@@ -159,7 +160,7 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
     // Keep the live connection-status consumer; legacy raw tables remain intact.
     const { error: connectionError } = await supabase.from('athlete_health_connections').upsert({athlete_user_id:userId,provider:snapshot.provider,last_synced_at:syncedAt,updated_at:syncedAt},{onConflict:'athlete_user_id'});
     if (connectionError) throw connectionError;
-    const warnings: string[] = [];
+    const warnings: string[] = [...nativeWarnings];
     try {
       const { error } = await supabase.rpc('phatbot_competition_lifecycle');
       if (error) warnings.push('Health data is saved, but competition standings could not refresh yet.');
