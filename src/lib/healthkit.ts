@@ -32,6 +32,7 @@ export type HealthKitSnapshot = {
       distanceMeters: number;
     }>;
   }>;
+  readWarnings?: string[];
   sleep?: Array<{
     value: number;
     startDate: string;
