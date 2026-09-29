@@ -7,6 +7,7 @@ const homePage = read("src/app/page.tsx");
 const catalog = read("src/app/programs/page.tsx");
 const preview = read("src/app/programs/[programId]/page.tsx");
 const detail = read("src/app/programs/current/page.tsx");
+const dayPicker = read("src/components/ProgramDayPicker.tsx");
 const coach = read("src/components/CoachAthleteProgramSection.tsx");
 const workoutsLayout = read("src/app/workouts/layout.tsx");
 
@@ -87,6 +88,14 @@ describe("program management UI integration", () => {
     expect(detail).toContain("assignment history");
     expect(detail).toContain('assignment_status === "scheduled"');
     expect(detail).toContain("up next");
+  });
+
+  it("offers a one-day choice without switching the coach's program", () => {
+    expect(home).toContain("choose another program day");
+    expect(detail).toContain("programdaypicker");
+    expect(dayPicker).toContain('rpc("start_my_selected_program_workout"');
+    expect(dayPicker).toContain("p_cursor_revision");
+    expect(dayPicker).not.toContain("assign_program_to_athlete");
   });
 
   it("lets a coach assign, schedule or clear review, and view history without table writes", () => {

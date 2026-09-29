@@ -144,6 +144,6 @@ export default function AthleteProgramHomeCard({
     {nextOption?.is_optional && <p className="mt-3 text-xs font-black uppercase tracking-[.18em] text-zinc-300">Day {nextOption.day_number} — Optional</p>}
     {activeWorkout ? <p className="mt-4 rounded-xl border border-zinc-800 px-4 py-3 text-sm text-zinc-400">Your next program workout will wait while <span className="font-bold text-zinc-200">{activeWorkout.workout_name_snapshot}</span> is in progress.</p> : nextOption?.is_optional ? <OptionalProgramDayActions option={nextOption} disabled={!hasReadyWorkout} onSkipped={() => window.location.reload()} /> : <button type="button" onClick={() => void startNextWorkout()} disabled={!hasReadyWorkout || starting} className="mt-5 w-full rounded-2xl bg-[#ff0032] px-5 py-4 font-black text-white disabled:opacity-50">{starting ? "Starting workout..." : "Start Next Workout"}</button>}
     {message && <p role="alert" className="mt-3 text-sm text-amber-300">{message}</p>}
-    <div className="mt-4 flex items-center justify-between gap-4 text-sm"><Link href="/programs/current" className="font-black text-zinc-300">View rotation</Link><Link href="/workouts" className="font-bold text-zinc-500">Other workouts</Link></div>
+    <div className="mt-4 flex items-center justify-between gap-4 text-sm"><Link href="/programs/current#choose-program-day" className="font-black text-zinc-300">Choose another program day</Link><Link href="/workouts" className="font-bold text-zinc-500">Other workouts</Link></div>
   </section>;
 }
