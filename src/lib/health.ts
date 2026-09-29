@@ -8,6 +8,7 @@ type NativeSnapshot = HealthKitSnapshot | HealthConnectSnapshot;
 
 export type PhatbotHealthSnapshot = NativeSnapshot & {
   provider: Exclude<PhatbotHealthProvider, 'none'>;
+  readWarnings?: string[];
 };
 
 export function getNativeHealthProvider(): PhatbotHealthProvider {
