@@ -326,5 +326,15 @@ try {
     }
     assert.deepEqual((await state(scheduled)).remaining_program_day_ids, []);
   });
+  await test('an already-passed day restarts the rotation so a missed Friday is not due after Monday', async () => {
+    await setDay(version.days[4], scheduled);
+    const monday = await selected(version.days[0]);
+    assert.deepEqual((await state(scheduled)).remaining_program_day_ids, version.days);
+    await asUser(athlete, () => db.query("update public.workout_sessions set status='cancelled' where id=$1", [monday]));
+    assert.equal((await state(scheduled)).next_program_day_id, version.days[0]);
+    await complete(await selected(version.days[0]));
+    assert.equal((await state(scheduled)).next_program_day_id, version.days[1]);
+    assert.deepEqual((await state(scheduled)).remaining_program_day_ids, version.days.slice(1));
+  });
   console.log(`All ${passed} disposable database integration scenarios passed.`);
 } finally { await db.close(); }

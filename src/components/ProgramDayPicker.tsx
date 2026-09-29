@@ -42,13 +42,12 @@ export default function ProgramDayPicker({
   return <section className="rounded-2xl border border-zinc-800 p-5" id="choose-program-day">
     <p className="text-xs font-black uppercase tracking-[.18em] text-zinc-500">Need to train a different day?</p>
     <h2 className="mt-2 text-xl font-black">Choose today&apos;s workout</h2>
-    <p className="mt-2 text-sm leading-6 text-zinc-400">{next?.name ?? "Your next workout"} remains the recommended choice. Moving another day to today keeps the rest of your coach&apos;s rotation in place.</p>
+    <p className="mt-2 text-sm leading-6 text-zinc-400">{next?.name ?? "Your next workout"} remains the recommended choice. Choose another prescribed day when your schedule changes. A day still due moves to today; a day already passed starts a fresh rotation from there.</p>
     <label htmlFor="program-day-choice" className="mt-4 block text-sm font-bold">Workout day</label>
     <select id="program-day-choice" value={selected} onChange={(event) => setSelected(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 text-white">
       <option value="">Select a different workout</option>
       {days.filter((day) => day.id !== nextDayId).map((day) => <option key={day.id} value={day.id}>Day {day.day_number} · {day.name}</option>)}
     </select>
-    {chosen && next && chosen.day_number < next.day_number && <p className="mt-2 text-xs text-zinc-400">This day is earlier in your current rotation. It will count as an extra session; the remaining prescribed days stay due.</p>}
     <button type="button" disabled={!chosen || starting} onClick={() => void startSelected()} className="mt-4 min-h-12 w-full rounded-xl bg-[#ff0032] px-4 py-3 font-black text-white disabled:opacity-50">{starting ? "Starting..." : chosen ? `Start ${chosen.name} today` : "Choose a workout first"}</button>
     {message && <p role="alert" className="mt-3 text-sm text-amber-300">{message}</p>}
   </section>;

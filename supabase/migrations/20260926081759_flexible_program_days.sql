@@ -112,12 +112,23 @@ begin
         where current_day.id = assignment.next_program_day_id
       );
   end if;
-  -- A day already passed in this cycle is an extra session. The still-due
-  -- days remain after it; a later day moves to the front without duplication.
-  select array_agg(item.id order by item.ordinality) into reordered
-  from unnest(pending) with ordinality as item(id, ordinality)
-  where item.id <> p_program_day_id;
-  reordered := array_prepend(p_program_day_id, coalesce(reordered, '{}'::uuid[]));
+  if array_position(pending, p_program_day_id) is null then
+    -- Returning to a day already passed starts a fresh rotation there. A
+    -- missed end-of-week day does not remain due after a Monday restart.
+    select array_agg(day.id order by day.day_number) into reordered
+    from public.training_program_days day
+    where day.program_id = assignment.program_id
+      and day.day_number >= (
+        select chosen.day_number from public.training_program_days chosen
+        where chosen.id = p_program_day_id
+      );
+  else
+    -- A still-due day moves to today; keep the other pending days in order.
+    select array_agg(item.id order by item.ordinality) into reordered
+    from unnest(pending) with ordinality as item(id, ordinality)
+    where item.id <> p_program_day_id;
+    reordered := array_prepend(p_program_day_id, coalesce(reordered, '{}'::uuid[]));
+  end if;
   update public.athlete_program_enrollments
   set next_program_day_id = p_program_day_id,
       remaining_program_day_ids = reordered

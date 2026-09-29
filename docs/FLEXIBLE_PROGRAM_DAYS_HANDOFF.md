@@ -5,8 +5,9 @@
 Home still recommends the current assignment cursor. On Current Program, an
 athlete may choose another day from that assignment's exact published version.
 The start RPC atomically reorders only the remaining days in this rotation and
-creates the normal immutable program-workout snapshot. A day already passed in
-the rotation becomes an extra session; the still-due days remain queued. A
+creates the normal immutable program-workout snapshot. Choosing a day already
+passed in the rotation starts a fresh rotation there and drops missed days
+from the prior rotation. Choosing a still-due day moves it to today. A
 cancelled session does not consume a day. Completion with a logged set consumes
 exactly the selected day, then recommends the next queued day. The next cycle
 returns to the normal first day. The assignment, future scheduled assignment,
