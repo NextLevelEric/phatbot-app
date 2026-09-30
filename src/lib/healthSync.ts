@@ -162,7 +162,7 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
     if (connectionError) throw connectionError;
     const warnings: string[] = [...nativeWarnings];
     try {
-      const { error } = await supabase.rpc('phatbot_competition_lifecycle');
+      const { error } = await supabase.rpc('refresh_competition_standings_after_health_sync');
       if (error) warnings.push('Health data is saved, but competition standings could not refresh yet.');
     } catch { warnings.push('Health data is saved, but competition standings could not refresh yet.'); }
     return { ...saved, provider:snapshot.provider, status:'synced', syncedAt, warnings, snapshot };
