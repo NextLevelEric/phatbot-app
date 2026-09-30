@@ -1,3 +1,4 @@
+import { aggregateSleep, reliableNight } from '@/features/recovery/sleep';
 import { createSupabaseBrowserClient } from '@/lib/supabase';
 import { getNativeHealthSnapshot, type PhatbotHealthProvider, type PhatbotHealthSnapshot } from '@/lib/health';
 import { buildStandardizedCardioSegments } from '@/features/cardio/segments';
@@ -74,21 +75,20 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
         active_energy_kcal: numberOrNull(workout.activeEnergyKcal), average_heart_rate_bpm: numberOrNull(workout.averageHeartRateBpm),
       };
     });
-    const sleepByDate = new Map<string, number>();
-    for (const sample of snapshot.sleep ?? []) {
-      if (!validDate(sample.endDate)) throw new Error('Invalid native sleep date');
-      const date = localDateKey(sample.endDate);
-      sleepByDate.set(date, (sleepByDate.get(date) ?? 0) + (numberOrNull(sample.durationSeconds) ?? 0));
-    }
+    const sleepNights = aggregateSleep(snapshot.sleep ?? [], source, Intl.DateTimeFormat().resolvedOptions().timeZone, snapshot.startDate, snapshot.endDate);
+    // Never persist incomplete boundary episodes or substitute session/in-bed
+    // duration for asleep. Missing whole reads leave older observations intact.
+    const completeNights = sleepNights.filter(night => !night.quality_flags.includes('window_boundary'));
+    const sleepByDate = new Map(completeNights.map(night => [night.wake_date, reliableNight(night) ? night.asleep_seconds : null]));
     const dailyByDate = new Map((snapshot.dailyMetrics ?? []).map(row => [row.date, {
       athlete_user_id: userId, source, metric_date: row.date,
       steps: row.steps == null ? null : Math.round(numberOrNull(row.steps)!),
       active_energy_kcal: numberOrNull(row.activeEnergyKcal),
-      sleep_seconds: sleepByDate.has(row.date) ? Math.round(sleepByDate.get(row.date)!) : null,
+      sleep_seconds: sleepByDate.has(row.date) ? sleepByDate.get(row.date)! : null,
       resting_heart_rate_bpm: null as number | null, hrv_ms: null as number | null,
     }]));
     for (const [date, seconds] of sleepByDate) {
-      if (!dailyByDate.has(date)) dailyByDate.set(date, { athlete_user_id:userId, source, metric_date:date, steps:null, active_energy_kcal:null, sleep_seconds:Math.round(seconds), resting_heart_rate_bpm:null, hrv_ms:null });
+      if (!dailyByDate.has(date)) dailyByDate.set(date, { athlete_user_id:userId, source, metric_date:date, steps:null, active_energy_kcal:null, sleep_seconds:seconds, resting_heart_rate_bpm:null, hrv_ms:null });
     }
     // Snapshot.steps/activeEnergyKcal are WINDOW totals, not today's values.
     // Never write a 14-day total into today's daily metrics.
@@ -104,7 +104,7 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
     // HealthKit conceals read denial as empty results/zero aggregates. Do not
     // overwrite history or stamp success on an entirely unreadable snapshot.
     const nativeWarnings = (snapshot.readWarnings ?? []).map(warning => `Health read warning: ${warning}`);
-    const hasReadableData = workouts.length > 0 || daily.some(row => [row.steps,row.active_energy_kcal,row.sleep_seconds,row.resting_heart_rate_bpm,row.hrv_ms].some(value => (value ?? 0) > 0));
+    const hasReadableData = completeNights.length > 0 || workouts.length > 0 || daily.some(row => [row.steps,row.active_energy_kcal,row.sleep_seconds,row.resting_heart_rate_bpm,row.hrv_ms].some(value => (value ?? 0) > 0));
     if (!hasReadableData) return { ...saved, provider:snapshot.provider, status:'empty', syncedAt:null, warnings:nativeWarnings, snapshot };
 
     stage = 'daily records';
@@ -119,7 +119,7 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
           // known positive value rather than silently erase it during recovery.
           steps: row.steps === 0 && (prior?.steps ?? 0) > 0 ? prior!.steps : row.steps ?? prior?.steps ?? null,
           active_energy_kcal: row.active_energy_kcal === 0 && (prior?.active_energy_kcal ?? 0) > 0 ? prior!.active_energy_kcal : row.active_energy_kcal ?? prior?.active_energy_kcal ?? null,
-          sleep_seconds: row.sleep_seconds ?? prior?.sleep_seconds ?? null,
+          sleep_seconds: sleepByDate.has(row.metric_date) ? row.sleep_seconds : prior?.sleep_seconds ?? null,
           resting_heart_rate_bpm: row.resting_heart_rate_bpm ?? prior?.resting_heart_rate_bpm ?? null,
           hrv_ms: row.hrv_ms ?? prior?.hrv_ms ?? null,
         };
@@ -155,12 +155,21 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
         saved.cardioSegments = segments.length;
       }
     }
+    const sleepWarnings: string[] = [];
+    if (sleepNights.some(night => night.quality_flags.length) || ((snapshot.sleep?.length ?? 0) > 0 && !sleepNights.length)) sleepWarnings.push('Some sleep records are incomplete or ambiguous and are excluded from sleep/performance analysis.');
+    if (completeNights.length) {
+      try {
+        const rows = completeNights.map(night => ({...night, athlete_user_id:userId, observed_at:snapshot.endDate, window_start:snapshot.startDate, window_end:snapshot.endDate}));
+        const result = await supabase.from('health_sleep_nights').upsert(rows,{onConflict:'athlete_user_id,source,wake_date'}).select('wake_date');
+        if (result.error || result.data?.length !== rows.length) throw new Error('Sleep save not confirmed');
+      } catch { sleepWarnings.push('Sleep details could not be saved. Other health data was saved; try syncing again when Sleep & Recovery is available.'); }
+    }
     stage = 'sync status';
     const syncedAt = new Date().toISOString();
     // Keep the live connection-status consumer; legacy raw tables remain intact.
     const { error: connectionError } = await supabase.from('athlete_health_connections').upsert({athlete_user_id:userId,provider:snapshot.provider,last_synced_at:syncedAt,updated_at:syncedAt},{onConflict:'athlete_user_id'});
     if (connectionError) throw connectionError;
-    const warnings: string[] = [...nativeWarnings];
+    const warnings: string[] = [...nativeWarnings, ...sleepWarnings];
     try {
       const { error } = await supabase.rpc('refresh_competition_standings_after_health_sync');
       if (error) warnings.push('Health data is saved, but competition standings could not refresh yet.');

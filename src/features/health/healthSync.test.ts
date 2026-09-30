@@ -140,3 +140,40 @@ describe('shared native health authority', () => {
     auth.mockResolvedValue({data:{user:null},error:null}); await expect(syncNativeHealth()).rejects.toMatchObject({stage:'auth'}); expect(mocks.snapshot).not.toHaveBeenCalled();
   });
 });
+
+describe('interval-derived sleep sync', () => {
+  const sample = (value:number) => ({value,startDate:'2026-09-20T01:00:00Z',endDate:'2026-09-20T09:00:00Z',durationSeconds:28800});
+  it('persists the union and provenance, and repeat sync keeps one night', async () => {
+    mocks.snapshot.mockResolvedValue({...fixture(),sleep:[sample(0),sample(1),sample(3),sample(3)]});
+    await syncNativeHealth(); await syncNativeHealth();
+    expect(tables.health_sleep_nights).toHaveLength(1);
+    expect(tables.health_sleep_nights[0]).toMatchObject({source:'healthkit',asleep_seconds:28800,in_bed_seconds:28800,stages:{core:28800},method_version:1});
+    expect(tables.health_daily_metrics.find(row=>row.metric_date===tables.health_sleep_nights[0].wake_date)?.sleep_seconds).toBe(28800);
+  });
+  it('corrects an in-bed-only daily total to unknown instead of preserving inflated sleep', async () => {
+    mocks.snapshot.mockResolvedValue({...fixture(),sleep:[sample(0)]});
+    await syncNativeHealth();
+    const date=tables.health_sleep_nights[0].wake_date;
+    tables.health_daily_metrics.find(row=>row.metric_date===date)!.sleep_seconds=57600;
+    await syncNativeHealth();
+    expect(tables.health_daily_metrics.find(row=>row.metric_date===date)?.sleep_seconds).toBeNull();
+    expect(tables.health_sleep_nights[0].asleep_seconds).toBeNull();
+  });
+  it('preserves existing daily sleep when native sleep is missing', async () => {
+    tables.health_daily_metrics=[{athlete_user_id:'athlete',source:'healthkit',metric_date:'2026-09-20',sleep_seconds:25000}];
+    await syncNativeHealth();
+    expect(tables.health_daily_metrics[0].sleep_seconds).toBe(25000);
+    expect(tables.health_sleep_nights).toBeUndefined();
+  });
+  it('keeps cardio sync successful when the pending sleep table is unavailable', async () => {
+    fail='health_sleep_nights:upsert';mocks.snapshot.mockResolvedValue({...fixture(),sleep:[sample(1)]});
+    const result=await syncNativeHealth();
+    expect(result).toMatchObject({status:'synced',workouts:2});
+    expect(result?.warnings.join(' ')).toContain('Sleep details could not be saved');
+    expect(tables.cardio_activities).toHaveLength(2);
+  });
+  it('does not persist an episode cut by the snapshot boundary', async () => {
+    mocks.snapshot.mockResolvedValue({...fixture(),sleep:[{...sample(1),startDate:'2026-09-21T01:00:00Z',endDate:fixture().endDate}]});
+    await syncNativeHealth();expect(tables.health_sleep_nights).toBeUndefined();
+  });
+});
