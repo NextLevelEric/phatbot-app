@@ -13,7 +13,7 @@ jobs:
     env:
       APPLE_TEAM_ID: S47LRBYFXA
       BUNDLE_ID: com.nextleveldigitalmedia.phatbot
-      APP_VERSION: 1.0
+      APP_VERSION: 1.1
 
     steps:
       - name: Check out selected workflow branch
