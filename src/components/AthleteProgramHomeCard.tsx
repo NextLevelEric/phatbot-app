@@ -24,6 +24,7 @@ import {
 } from "@/features/programs/programUi";
 
 type ActiveWorkout = { id: string; workout_name_snapshot: string };
+type ProgramDaySummary = { id: string; day_number: number; name: string };
 
 export default function AthleteProgramHomeCard({
   userId,
@@ -41,6 +42,9 @@ export default function AthleteProgramHomeCard({
   const [starting, setStarting] = useState(false);
   const [message, setMessage] = useState("");
   const [dayOptions, setDayOptions] = useState<ProgramDayOption[]>([]);
+  const [programDays, setProgramDays] = useState<ProgramDaySummary[]>([]);
+  const [showDayChoices, setShowDayChoices] = useState(false);
+  const [startingDayId, setStartingDayId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -64,8 +68,24 @@ export default function AthleteProgramHomeCard({
         setLoadFailed(true);
       } else {
         const history = (assignmentResult.data ?? []) as ProgramAssignment[];
-        setAssignment(history.find((item) => item.assignment_status === "active") ?? null);
+        const activeAssignment = history.find((item) => item.assignment_status === "active") ?? null;
+        setAssignment(activeAssignment);
         setScheduled(history.find((item) => item.assignment_status === "scheduled") ?? null);
+        if (activeAssignment) {
+          const daysResult = await supabase.from("training_program_days")
+            .select("id,day_number,name")
+            .eq("program_id", activeAssignment.program_version_id)
+            .order("day_number");
+          if (!mounted) return;
+          if (daysResult.error) {
+            setProgramDays([]);
+            setMessage("Workout choices couldn't load. Your recommended workout is still available.");
+          } else {
+            setProgramDays((daysResult.data ?? []) as ProgramDaySummary[]);
+          }
+        } else {
+          setProgramDays([]);
+        }
         setNextWorkout(buildNextProgramWorkout((nextResult.data ?? []) as NextProgramWorkoutRow[]));
         setLaunch(launchResult.error
           ? null
@@ -105,6 +125,44 @@ export default function AthleteProgramHomeCard({
     setStarting(false);
   }
 
+  async function startSelectedProgramDay(dayId: string) {
+    if (!assignment || starting || startingDayId) return;
+    const option = findDayOption(dayOptions, assignment.assignment_id, dayId);
+    if (!option) {
+      setMessage("That workout choice is not available right now. Refresh before trying again.");
+      return;
+    }
+
+    setStartingDayId(dayId);
+    setMessage("");
+    const supabase = createSupabaseBrowserClient();
+    const { data, error } = await supabase.rpc("start_my_selected_program_workout", {
+      p_assignment_id: assignment.assignment_id,
+      p_program_day_id: dayId,
+      p_cursor_revision: option.cursor_revision,
+    });
+    if (!error && typeof data === "string") {
+      window.location.href = "/sessions/" + data;
+      return;
+    }
+
+    const { data: active } = await supabase
+      .from("workout_sessions")
+      .select("id")
+      .eq("athlete_user_id", userId)
+      .eq("status", "in_progress")
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (active?.id) {
+      window.location.href = "/sessions/" + active.id;
+      return;
+    }
+
+    setMessage("We couldn't confirm the start. Refresh before trying again; your program position is safe.");
+    setStartingDayId(null);
+  }
+
   if (loading) {
     return <section aria-label="Loading your program" className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5"><div className="h-3 w-28 animate-pulse rounded bg-[#ff0032]/50"/><div className="mt-4 h-8 w-2/3 animate-pulse rounded bg-zinc-800"/><div className="mt-5 h-14 animate-pulse rounded-2xl bg-zinc-900"/></section>;
   }
@@ -138,12 +196,29 @@ export default function AthleteProgramHomeCard({
   const nextOption = nextWorkout ? findDayOption(dayOptions, nextWorkout.assignmentId, nextWorkout.dayId) : null;
   return <section className="overflow-hidden rounded-3xl border border-[rgba(255,0,50,.42)] bg-gradient-to-b from-zinc-900 to-black p-5 shadow-2xl sm:p-7">
     <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">Your program</p><h2 className="mt-2 text-xl font-black">{assignment.program_family_name}</h2><p className="mt-1 text-xs text-zinc-500">v{assignment.version_number} · {assignmentSourceLabel(assignment)}</p></div><Link href="/programs/current" className="shrink-0 text-sm font-black text-zinc-300">Details →</Link></div>
-    {hasReadyWorkout && nextWorkout ? <div className="mt-5 rounded-2xl border border-zinc-800 bg-black/50 p-4"><p className="text-[11px] font-black uppercase tracking-[.18em] text-zinc-500">Next workout</p><p className="mt-2 text-2xl font-black">{nextWorkout.dayName}</p><p className="mt-1 text-sm text-zinc-400">{nextWorkout.exercises.length} exercise{nextWorkout.exercises.length === 1 ? "" : "s"}</p></div> : <div className="mt-5 rounded-2xl border border-amber-800/50 p-4"><p className="font-black text-amber-300">Next workout unavailable</p><p className="mt-1 text-sm text-zinc-400">Your assignment is safe. Try again before starting.</p></div>}
+    {hasReadyWorkout && nextWorkout ? <div className="mt-5 rounded-2xl border border-zinc-800 bg-black/50 p-4"><div className="flex items-center justify-between gap-3"><p className="text-[11px] font-black uppercase tracking-[.18em] text-zinc-500">Today&apos;s workout</p><span className="rounded-full border border-[#ff0032]/40 bg-[#ff0032]/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[.14em] text-[#ff0032]">Recommended</span></div><p className="mt-2 text-2xl font-black">{nextWorkout.dayName}</p><p className="mt-1 text-sm text-zinc-400">{nextWorkout.exercises.length} exercise{nextWorkout.exercises.length === 1 ? "" : "s"}</p></div> : <div className="mt-5 rounded-2xl border border-amber-800/50 p-4"><p className="font-black text-amber-300">Next workout unavailable</p><p className="mt-1 text-sm text-zinc-400">Your assignment is safe. Try again before starting.</p></div>}
     <p className={`mt-3 text-xs font-bold ${review.isDue ? "text-amber-300" : "text-zinc-500"}`}>{review.label}</p>
     {scheduled && <Link href="/programs/current" className="mt-3 block text-xs font-bold text-zinc-400">New program starts {formatProgramStartDate(scheduled.started_at)} →</Link>}
     {nextOption?.is_optional && <p className="mt-3 text-xs font-black uppercase tracking-[.18em] text-zinc-300">Day {nextOption.day_number} — Optional</p>}
-    {activeWorkout ? <p className="mt-4 rounded-xl border border-zinc-800 px-4 py-3 text-sm text-zinc-400">Your next program workout will wait while <span className="font-bold text-zinc-200">{activeWorkout.workout_name_snapshot}</span> is in progress.</p> : nextOption?.is_optional ? <OptionalProgramDayActions option={nextOption} disabled={!hasReadyWorkout} onSkipped={() => window.location.reload()} /> : <button type="button" onClick={() => void startNextWorkout()} disabled={!hasReadyWorkout || starting} className="mt-5 w-full rounded-2xl bg-[#ff0032] px-5 py-4 font-black text-white disabled:opacity-50">{starting ? "Starting workout..." : "Start Next Workout"}</button>}
+    {activeWorkout ? <p className="mt-4 rounded-xl border border-zinc-800 px-4 py-3 text-sm text-zinc-400">Your next program workout will wait while <span className="font-bold text-zinc-200">{activeWorkout.workout_name_snapshot}</span> is in progress.</p> : nextOption?.is_optional ? <OptionalProgramDayActions option={nextOption} disabled={!hasReadyWorkout} onSkipped={() => window.location.reload()} /> : <button type="button" onClick={() => void startNextWorkout()} disabled={!hasReadyWorkout || starting || Boolean(startingDayId)} className="mt-5 w-full rounded-2xl bg-[#ff0032] px-5 py-4 font-black text-white disabled:opacity-50">{starting ? "Starting workout..." : nextWorkout ? "Start " + nextWorkout.dayName : "Start Today's Workout"}</button>}
+    {!activeWorkout && hasReadyWorkout && programDays.length > 1 && <div className="mt-4 border-t border-zinc-800 pt-4">
+      <button type="button" aria-expanded={showDayChoices} onClick={() => setShowDayChoices((open) => !open)} className="flex w-full items-center justify-between gap-4 text-left">
+        <span><span className="block text-sm font-black text-zinc-200">Need a different workout today?</span><span className="mt-1 block text-xs leading-5 text-zinc-500">Choose another workout from your current program.</span></span>
+        <span aria-hidden="true" className="text-lg font-black text-zinc-500">{showDayChoices ? "−" : "+"}</span>
+      </button>
+      {showDayChoices && <div className="mt-3 grid gap-2">
+        {programDays.filter((day) => day.id !== nextWorkout?.dayId).map((day) => {
+          const option = findDayOption(dayOptions, assignment.assignment_id, day.id);
+          const isStarting = startingDayId === day.id;
+          return <button key={day.id} type="button" onClick={() => void startSelectedProgramDay(day.id)} disabled={!option || starting || Boolean(startingDayId)} className="flex min-h-14 w-full items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-black/40 px-4 py-3 text-left transition active:bg-zinc-900 disabled:opacity-50">
+            <span><span className="block text-xs font-black uppercase tracking-[.14em] text-zinc-500">Day {day.day_number}</span><span className="mt-1 block font-black text-white">{day.name}</span></span>
+            <span className="shrink-0 text-sm font-black text-zinc-300">{isStarting ? "Starting..." : "Train today →"}</span>
+          </button>;
+        })}
+        <Link href="/programs/current" className="mt-1 text-center text-xs font-bold text-zinc-500">View full program details →</Link>
+      </div>}
+    </div>}
     {message && <p role="alert" className="mt-3 text-sm text-amber-300">{message}</p>}
-    <div className="mt-4 flex items-center justify-between gap-4 text-sm"><Link href="/programs/current#choose-program-day" className="font-black text-zinc-300">Choose another program day</Link><Link href="/workouts" className="font-bold text-zinc-500">Other workouts</Link></div>
+    <div className="mt-4 flex justify-end text-sm"><Link href="/workouts" className="font-bold text-zinc-500">Other workouts</Link></div>
   </section>;
 }
