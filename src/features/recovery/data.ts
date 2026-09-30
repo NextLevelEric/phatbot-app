@@ -27,8 +27,14 @@ export async function loadRecoveryData(client:SupabaseClient,userId:string,asOf=
   if(strengthResult.status==='fulfilled') for(const row of strengthResult.value as StrengthRow[]) {
     const score=row.workout_scores?.length===1?row.workout_scores[0]:null;
     const hasScore=score?.score!=null&&score.scored_exercise_count>0;
+    const establishingBaseline=(score?.baseline_count??0)>0;
+    const details=hasScore
+      ? [`Existing PO score: ${(Number(score!.score)*100).toFixed(0)}% · ${score!.scored_exercise_count} scored exercises`,`${score!.progression_count} progression / ${score!.regression_count} regression outcomes`]
+      : establishingBaseline
+        ? ['Establishing baseline','You’re building a new performance baseline for this workout. PHATBOT will compare future sessions as you repeat it.']
+        : ['Performance unavailable','PHATBOT does not have enough comparable performance data for this workout yet.'];
     training.push({id:row.id,label:row.workout_name_snapshot,startedAt:row.started_at,endedAt:row.completed_at,href:`/sessions/${row.id}/report`,
-      details:hasScore?[`Existing PO score: ${(Number(score!.score)*100).toFixed(0)}% · ${score!.scored_exercise_count} scored exercises`,`${score!.progression_count} progression / ${score!.regression_count} regression outcomes`]:['PO coverage unavailable; no zero score inferred.'],
+      details,
       signals:hasScore&&row.workout_id&&score!.baseline_count===0?[{key:`strength:${row.workout_id}:${score!.scored_exercise_count}`,label:`${row.workout_name_snapshot} · PO score (${score!.scored_exercise_count} scored exercises)`,value:Number(score!.score)*100,unit:'%',lowerIsBetter:false}]:[],
     });
   } else warnings.push('Strength history is temporarily unavailable.');
