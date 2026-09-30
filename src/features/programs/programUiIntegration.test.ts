@@ -16,7 +16,8 @@ describe("program management UI integration", () => {
     expect(home).toContain("get_athlete_program_assignments");
     expect(home).toContain("get_next_program_workout");
     expect(home).toContain("your program");
-    expect(home).toContain("next workout");
+    expect(home).toContain("today&apos;s workout");
+    expect(home).toContain("recommended");
     expect(home).toContain('assignment_status === "scheduled"');
     expect(home).toContain("new program starts");
   });
