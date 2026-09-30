@@ -92,7 +92,11 @@ describe("program management UI integration", () => {
   });
 
   it("offers a one-day choice without switching the coach's program", () => {
-    expect(home).toContain("choose another program day");
+    expect(home).toContain("need a different workout today?");
+    expect(home).toContain("choose another workout from your current program");
+    expect(home).toContain('rpc("start_my_selected_program_workout"');
+    expect(home).toContain("p_cursor_revision");
+    expect(home).not.toContain('rpc("assign_program_to_athlete"');
     expect(detail).toContain("programdaypicker");
     expect(dayPicker).toContain('rpc("start_my_selected_program_workout"');
     expect(dayPicker).toContain("p_cursor_revision");
