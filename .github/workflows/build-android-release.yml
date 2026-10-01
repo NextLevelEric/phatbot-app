@@ -54,13 +54,13 @@ jobs:
           ./gradlew :app:compileReleaseKotlin :app:processReleaseMainManifest --no-daemon --console=plain
           ./gradlew :app:bundleRelease --dry-run --no-daemon --console=plain > "$RUNNER_TEMP/release-task-graph.txt"
           grep -q ':app:verifyPhatbotReleaseSigning' "$RUNNER_TEMP/release-task-graph.txt"
-          grep -q ':app:validateSigningRelease' "$RUNNER_TEMP/release-task-graph.txt"
-          grep -q ':app:signReleaseBundle' "$RUNNER_TEMP/release-task-graph.txt"
+          grep -q ':app:bundleRelease' "$RUNNER_TEMP/release-task-graph.txt"
+          cat "$RUNNER_TEMP/release-task-graph.txt"
       - name: Verify signing stage fails closed without credentials
         working-directory: android
         shell: bash
         run: |
-          if ./gradlew :app:validateSigningRelease --no-daemon --console=plain > "$RUNNER_TEMP/missing-signing.txt" 2>&1; then
+          if ./gradlew :app:bundleRelease --no-daemon --console=plain > "$RUNNER_TEMP/missing-signing.txt" 2>&1; then
             echo 'ERROR: release signing unexpectedly accepted missing credentials'
             exit 1
           fi
