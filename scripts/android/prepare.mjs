@@ -27,6 +27,14 @@ export function installBridge(root='android') {
   fs.mkdirSync(target,{recursive:true});
   for(const name of ['HealthConnectPlugin.kt','MainActivity.java'])fs.copyFileSync(path.join('android-native',name),path.join(target,name));
 }
+export function configureCompatibility(root='android') {
+  // Health Connect 1.1.0 requires API 26; Capacitor's template defaults to 24.
+  const file=path.join(root,'variables.gradle');
+  const text=fs.readFileSync(file,'utf8');
+  const minimum=text.match(/minSdkVersion\s*=\s*(\d+)/);
+  if(!minimum)throw new Error('Missing generated minSdkVersion');
+  if(Number(minimum[1])<26)fs.writeFileSync(file,text.replace(minimum[0],'minSdkVersion = 26'));
+}
 export function verifyShell(root='android') {
   const config=JSON.parse(fs.readFileSync(path.join(root,'app/src/main/assets/capacitor.config.json'),'utf8'));
   if(config.appId!==APP_ID||config.appName!=='PHATBOT'||config.webDir!=='ios-shell'||config.server?.url!=='https://app.phatbotfit.com'||config.server?.cleartext!==false||config.server?.errorPath!=='index.html')throw new Error('Unexpected PHATBOT production Capacitor configuration');
@@ -58,8 +66,9 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
   try {
     const command=process.argv[2];
     if(command==='bridge')installBridge();
+    else if(command==='compatibility')configureCompatibility();
     else if(command==='release')configureRelease();
     else if(command==='verify')verifyShell();
-    else throw new Error('Expected bridge, release or verify command');
+    else throw new Error('Expected bridge, compatibility, release or verify command');
   }catch(error){console.error(error.message);process.exitCode=1;}
 }

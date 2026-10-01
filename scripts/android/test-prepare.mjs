@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {installBridge,verifyShell,releaseVersion,configureRelease,APP_ID,HEALTH_PERMISSIONS} from './prepare.mjs';
+import {installBridge,verifyShell,releaseVersion,configureRelease,configureCompatibility,APP_ID,HEALTH_PERMISSIONS} from './prepare.mjs';
 import {decodeKeystore} from './restore-keystore.mjs';
 const fixture=()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'phatbot-android-test-'));
@@ -56,4 +56,14 @@ test('keystore decoder accepts multiline Base64 but fails closed on missing or c
   // These bytes are only an encoding fixture, not a key or a signing credential.
   assert.equal(decodeKeystore('aGVs\nbG8=').toString(),'hello');
   for(const value of [undefined,'','%%%','aGVsbG8','aGVsbG9='])assert.throws(()=>decodeKeystore(value));
+});
+test('Health Connect minimum SDK is applied without lowering newer platform requirements',()=>{
+  const root=fixture();try{
+    const file=path.join(root,'variables.gradle');
+    fs.writeFileSync(file,'ext { minSdkVersion = 24 }');configureCompatibility(root);
+    assert.match(fs.readFileSync(file,'utf8'),/minSdkVersion = 26/);
+    configureCompatibility(root);assert.match(fs.readFileSync(file,'utf8'),/minSdkVersion = 26/);
+    fs.writeFileSync(file,'ext { minSdkVersion = 28 }');configureCompatibility(root);
+    assert.match(fs.readFileSync(file,'utf8'),/minSdkVersion = 28/);
+  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
