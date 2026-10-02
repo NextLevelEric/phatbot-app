@@ -11,6 +11,7 @@ type LiveSet = {
   weight: number;
   reps: number;
   partial_reps: number;
+  load_type?: "external_load" | "bodyweight" | "assisted_bodyweight";
 };
 
 type Props = {
@@ -62,7 +63,7 @@ export function LivePersonalRecordBadges({ exerciseId, sessionStartedAt, sets, w
       const comparableExerciseIds = (identityRows ?? []).map((row) => row.exercise_id);
       const { data, error } = await supabase
         .from("exercise_sessions")
-        .select("sets(id,set_type,weight,reps,partial_reps),workout_sessions!inner(completed_at,athlete_user_id,status)")
+        .select("sets(id,set_type,weight,reps,partial_reps,load_type),workout_sessions!inner(completed_at,athlete_user_id,status)")
         .in("exercise_id", comparableExerciseIds.length ? comparableExerciseIds : [exerciseId])
         .eq("workout_sessions.athlete_user_id", user.id)
         .eq("workout_sessions.status", "completed")
@@ -72,7 +73,7 @@ export function LivePersonalRecordBadges({ exerciseId, sessionStartedAt, sets, w
         setHistoricalSets([]);
         return;
       }
-      setHistoricalSets(((data ?? []) as HistoricalRow[]).flatMap((row) => row.sets ?? []).map(toPRSet));
+      setHistoricalSets(((data ?? []) as HistoricalRow[]).flatMap((row) => row.sets ?? []).filter((set) => set.load_type !== "assisted_bodyweight").map(toPRSet));
     }
     loadHistory();
     return () => { cancelled = true; };
@@ -83,6 +84,7 @@ export function LivePersonalRecordBadges({ exerciseId, sessionStartedAt, sets, w
     const prior = [...historicalSets];
     const found: DisplayRecord[] = [];
     for (const set of sets) {
+      if (set.load_type === "assisted_bodyweight") continue;
       const current = toPRSet(set);
       const badge = classifyLivePersonalRecord(current, prior);
       if (badge) found.push({ setId: set.id, set, badge });

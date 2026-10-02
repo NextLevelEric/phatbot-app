@@ -11,17 +11,17 @@ import { formatHistoricalPerformanceDate, reportExerciseStatus, type HistoricalE
 import { trackProductEvent } from "@/lib/productAnalytics";
 import { canonicalExerciseId, sameCanonicalExercise } from "@/features/exercises/identity";
 
-type RawSet = { weight:number; reps:number; partial_reps:number; set_type:string; set_number?:number };
+type RawSet = { weight:number; reps:number; partial_reps:number; set_type:string; set_number?:number; load_type?:"external_load"|"bodyweight"|"assisted_bodyweight" };
 type ExerciseSession = { exercise_id:string; exercise_name_snapshot:string; position:number; notes:string|null; sets:RawSet[]; exercise:{canonical_exercise_id:string|null;name:string}|null };
 type Session = { id:string; workout_id:string; workout_name_snapshot:string; completed_at:string|null; notes:string|null };
 type PriorSession = { id:string; completed_at:string; notes:string|null };
 type ReportRow = { name:string; position:number; result:ExerciseScoreResult; prs:PersonalRecordResult[]; status:ReturnType<typeof reportExerciseStatus>; history:HistoricalExercisePerformance<RawSet>|null };
 type CoachFeedback = { id:string; feedback:string; coach_user_id:string; created_at:string; updated_at:string };
 
-function normalizeSets(sets:RawSet[]):PerformanceSet[]{return sets.filter(s=>["warmup","working","top","backoff"].includes(s.set_type)).map(s=>({weight:Number(s.weight),reps:s.reps,partialReps:s.partial_reps,setType:s.set_type as PerformanceSet["setType"]}));}
-function prSets(sets:RawSet[]):PRSet[]{return sets.map(s=>({weight:Number(s.weight),reps:s.reps,partialReps:s.partial_reps,setType:s.set_type}));}
+function normalizeSets(sets:RawSet[]):PerformanceSet[]{return sets.filter(s=>s.load_type!=="assisted_bodyweight"&&["warmup","working","top","backoff"].includes(s.set_type)).map(s=>({weight:Number(s.weight),reps:s.reps,partialReps:s.partial_reps,setType:s.set_type as PerformanceSet["setType"]}));}
+function prSets(sets:RawSet[]):PRSet[]{return sets.filter(s=>s.load_type!=="assisted_bodyweight").map(s=>({weight:Number(s.weight),reps:s.reps,partialReps:s.partial_reps,setType:s.set_type}));}
 function combinedNotes(a:string|null|undefined,b:string|null|undefined){return[a,b].filter(Boolean).join(" ").trim()||null;}
-function strengthSets(sets:RawSet[]){return sets.map(s=>({weight:Number(s.weight),reps:s.reps,setType:s.set_type}));}
+function strengthSets(sets:RawSet[]){return sets.filter(s=>s.load_type!=="assisted_bodyweight").map(s=>({weight:Number(s.weight),reps:s.reps,setType:s.set_type}));}
 function prMessage(pr:PersonalRecordResult,unit:"lb"|"kg"){if(pr.type==="heaviest_weight")return`New weight PR: ${pr.weight} ${unit} × ${pr.reps}. Previous heaviest load was ${pr.previousWeight??"N/A"}${pr.previousWeight===null?"":` ${unit}`}.`;return`Rep PR at ${pr.weight} ${unit}: ${pr.reps} reps, up from ${pr.previousReps??"N/A"}.`;}
 function performedSets(sets:RawSet[]){return normalizeSets(sets).filter(s=>s.setType!=="warmup");}
 
@@ -47,7 +47,7 @@ await trackProductEvent("report_viewed", {
     const{data:feedbackRows}=await supabase.from("coach_workout_feedback").select("id, feedback, coach_user_id, created_at, updated_at").eq("workout_session_id",params.id).eq("athlete_user_id",user.id).order("updated_at",{ascending:false});
     setCoachFeedback((feedbackRows??[])as CoachFeedback[]);
     if((feedbackRows??[]).length>0){const{error}=await supabase.rpc("mark_coach_feedback_read",{p_workout_session_id:params.id});if(error)console.error("PHATBOT could not mark coach feedback read",error);}
-    const{data:currentExercises,error:exerciseError}=await supabase.from("exercise_sessions").select("exercise_id, exercise_name_snapshot, position, notes, sets(weight, reps, partial_reps, set_type, set_number), exercise:exercises(canonical_exercise_id,name)").eq("workout_session_id",params.id).order("position",{ascending:true});
+    const{data:currentExercises,error:exerciseError}=await supabase.from("exercise_sessions").select("exercise_id, exercise_name_snapshot, position, notes, sets(weight, reps, partial_reps, set_type, set_number, load_type), exercise:exercises(canonical_exercise_id,name)").eq("workout_session_id",params.id).order("position",{ascending:true});
     if(exerciseError){setMessage(exerciseError.message);setLoading(false);return;}
     const current=(currentExercises??[])as unknown as ExerciseSession[];
     const{data:priorSessionRows}=await supabase.from("workout_sessions").select("id, completed_at, notes").eq("athlete_user_id",user.id).eq("status","completed").lt("completed_at",currentSession.completed_at).order("completed_at",{ascending:false});
@@ -55,7 +55,7 @@ await trackProductEvent("report_viewed", {
     const priorById=new Map(priorSessions.map(s=>[s.id,s]));
     const priorIds=priorSessions.map(s=>s.id);
     let allPriorExercises:(ExerciseSession&{workout_session_id:string})[]=[];
-    if(priorIds.length){const{data}=await supabase.from("exercise_sessions").select("workout_session_id, exercise_id, exercise_name_snapshot, position, notes, sets(weight, reps, partial_reps, set_type, set_number), exercise:exercises(canonical_exercise_id,name)").in("workout_session_id",priorIds);allPriorExercises=(data??[]) as unknown as (ExerciseSession&{workout_session_id:string})[];}
+    if(priorIds.length){const{data}=await supabase.from("exercise_sessions").select("workout_session_id, exercise_id, exercise_name_snapshot, position, notes, sets(weight, reps, partial_reps, set_type, set_number, load_type), exercise:exercises(canonical_exercise_id,name)").in("workout_session_id",priorIds);allPriorExercises=(data??[]) as unknown as (ExerciseSession&{workout_session_id:string})[];}
     const{data:previousSameWorkout}=await supabase.from("workout_sessions").select("id, notes").eq("athlete_user_id",user.id).eq("workout_id",currentSession.workout_id).eq("status","completed").lt("completed_at",currentSession.completed_at).order("completed_at",{ascending:false}).limit(1).maybeSingle();
     const previousExercises=previousSameWorkout?allPriorExercises.filter(e=>e.workout_session_id===previousSameWorkout.id):[];
     const reportRows:ReportRow[]=[];
