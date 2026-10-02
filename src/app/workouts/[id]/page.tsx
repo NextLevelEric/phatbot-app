@@ -8,7 +8,8 @@ import { trackProductEvent } from "@/lib/productAnalytics";
 import { selectableExercise } from "@/features/exercises/identity";
 
 type Workout = { id: string; name: string; description: string | null };
-type MuscleTag = { muscle_group: string; position: number };\ntype Exercise = { id: string; name: string; muscle_group: string | null; equipment: string | null; canonical_exercise_id: string | null; is_standard: boolean; is_custom: boolean; primary_muscle_group: string | null; movement_pattern: string | null; equipment_category: string | null; exercise_class: string | null; laterality: string | null; setup: string | null; secondary_muscles?: MuscleTag[] };
+type MuscleTag = { muscle_group: string; position: number };
+type Exercise = { id: string; name: string; muscle_group: string | null; equipment: string | null; canonical_exercise_id: string | null; is_standard: boolean; is_custom: boolean; primary_muscle_group: string | null; movement_pattern: string | null; equipment_category: string | null; exercise_class: string | null; laterality: string | null; setup: string | null; secondary_muscles?: MuscleTag[] };
 type DistanceUnit = "yd" | "mi" | "m" | "km";
 type WorkoutExercise = { id: string; position: number; target_rep_min: number | null; target_rep_max: number | null; prescribed_set_targets: string[]; target_rounds: number | null; target_duration_seconds_min: number | null; target_duration_seconds_max: number | null; target_distance: number | null; target_distance_unit: DistanceUnit | null; exercise: Exercise };
 type RepDraft = { min: string; max: string };
@@ -39,7 +40,9 @@ export default function WorkoutDetailPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customMuscleGroup, setCustomMuscleGroup] = useState("");
-  const [customEquipment, setCustomEquipment] = useState("");\n  const [muscleFilter, setMuscleFilter] = useState("");\n  const [classFilter, setClassFilter] = useState("");
+  const [customEquipment, setCustomEquipment] = useState("");
+  const [muscleFilter, setMuscleFilter] = useState("");
+  const [classFilter, setClassFilter] = useState("");
   const [repDrafts, setRepDrafts] = useState<Record<string, RepDraft>>({});
   const [flexibleDrafts, setFlexibleDrafts] = useState<Record<string, FlexibleDraft>>({});
 
