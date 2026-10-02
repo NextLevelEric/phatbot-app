@@ -24,19 +24,25 @@ export default function WorkoutsPage() {
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const [message, setMessage] = useState("");
   const [archiveTarget, setArchiveTarget] = useState<Workout | null>(null);
+  const [currentProgramName, setCurrentProgramName] = useState<string | null>(null);
 
   const loadWorkouts = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { window.location.href = "/auth"; return; }
-    const [templates, active] = await Promise.all([
+    const [templates, active, assignments] = await Promise.all([
       supabase.from("workouts").select("id, name, description, created_at, sort_order").eq("athlete_user_id", user.id).eq("is_active", true).order("sort_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true }),
       supabase.from("workout_sessions").select("id, workout_id, workout_name_snapshot, started_at").eq("athlete_user_id", user.id).eq("status", "in_progress").order("started_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.rpc("get_athlete_program_assignments", { p_athlete_user_id: user.id }),
     ]);
     if (templates.error) setMessage(templates.error.message);
     else if (active.error) setMessage(active.error.message);
     setWorkouts((templates.data ?? []) as Workout[]);
     setActiveWorkout((active.data ?? null) as ActiveWorkout | null);
+    if (!assignments.error) {
+      const current = ((assignments.data ?? []) as Array<{ assignment_status: string; program_family_name: string }>).find((item) => item.assignment_status === "active");
+      setCurrentProgramName(current?.program_family_name ?? null);
+    }
     setLoading(false);
   }, []);
 
@@ -60,6 +66,8 @@ export default function WorkoutsPage() {
     <header><div className="flex items-center gap-3 text-[#ff0032]"><DumbbellIcon/><p className="text-xs font-black uppercase tracking-[.22em]">PHATBOT Train</p></div><h1 className="mt-3 text-3xl font-black">What are we training?</h1><p className="mt-2 max-w-lg text-zinc-400">Choose your training day. PHATBOT will pull your history, targets, and progressive overload context into the workout.</p></header>
 
     {message && <p className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-200">{message}</p>}
+
+    {currentProgramName && <section className="rounded-2xl border border-[#ff0032]/50 bg-[#ff0032]/5 p-5"><p className="text-xs font-black uppercase tracking-[.18em] text-[#ff0032]">Your Current Program</p><h2 className="mt-2 text-2xl font-black">{currentProgramName}</h2><p className="mt-2 text-sm text-zinc-300">Choose any prescribed day from your current program. The recommended day stays intact unless you start another program day.</p><Link href="/programs/current#choose-program-day" className="mt-4 flex min-h-12 items-center justify-center rounded-xl bg-[#ff0032] px-5 font-black text-white">Choose a {currentProgramName} day →</Link><p className="mt-3 text-xs text-zinc-500">The workouts below are your older standalone templates, not your current program.</p></section>}
 
     {activeWorkout && <section className="overflow-hidden rounded-2xl border border-[#ff0032]/60 bg-[#ff0032]/5"><div className="p-5"><p className="text-xs font-black uppercase tracking-[.18em] text-[#ff0032]">Workout In Progress</p><h2 className="mt-2 text-2xl font-black">{activeWorkout.workout_name_snapshot}</h2><p className="mt-2 text-sm text-zinc-300">Your workout is saved and waiting. Continue where you left off before starting another training day.</p><Link href={`/sessions/${activeWorkout.id}`} className="mt-5 flex min-h-14 items-center justify-center rounded-xl bg-[#ff0032] px-5 text-base font-black text-white">Resume PHATBOT Train →</Link></div></section>}
 

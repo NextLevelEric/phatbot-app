@@ -219,6 +219,6 @@ export default function AthleteProgramHomeCard({
       </div>}
     </div>}
     {message && <p role="alert" className="mt-3 text-sm text-amber-300">{message}</p>}
-    <div className="mt-4 flex justify-end text-sm"><Link href="/workouts" className="font-bold text-zinc-500">Other workouts</Link></div>
+    <div className="mt-4 flex flex-wrap justify-end gap-4 text-sm"><Link href="/programs/current#choose-program-day" className="font-black text-zinc-300">Choose another program day →</Link><Link href="/workouts" className="font-bold text-zinc-600">My standalone workouts</Link></div>
   </section>;
 }
