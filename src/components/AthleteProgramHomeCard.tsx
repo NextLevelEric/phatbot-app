@@ -210,9 +210,9 @@ export default function AthleteProgramHomeCard({
         {programDays.filter((day) => day.id !== nextWorkout?.dayId).map((day) => {
           const option = findDayOption(dayOptions, assignment.assignment_id, day.id);
           const isStarting = startingDayId === day.id;
-          return <button key={day.id} type="button" onClick={() => void startSelectedProgramDay(day.id)} disabled={!option || starting || Boolean(startingDayId)} className="flex min-h-14 w-full items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-black/40 px-4 py-3 text-left transition active:bg-zinc-900 disabled:opacity-50">
+          return <button key={day.id} type="button" onClick={() => option ? void startSelectedProgramDay(day.id) : window.location.assign("/programs/current#choose-program-day")} disabled={starting || Boolean(startingDayId)} className="flex min-h-14 w-full items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-black/40 px-4 py-3 text-left transition active:bg-zinc-900 disabled:opacity-50">
             <span><span className="block text-xs font-black uppercase tracking-[.14em] text-zinc-500">Day {day.day_number}</span><span className="mt-1 block font-black text-white">{day.name}</span></span>
-            <span className="shrink-0 text-sm font-black text-zinc-300">{isStarting ? "Starting..." : "Train today →"}</span>
+            <span className="shrink-0 text-sm font-black text-zinc-300">{isStarting ? "Starting..." : option ? "Train today →" : "View program →"}</span>
           </button>;
         })}
         <Link href="/programs/current" className="mt-1 text-center text-xs font-bold text-zinc-500">View full program details →</Link>
