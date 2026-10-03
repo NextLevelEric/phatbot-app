@@ -32,7 +32,7 @@ export default function CardioActivityReport({ data }: { data: ActivityReportDat
       {positive(activity.active_energy_kcal) && <ActivityMetric label="Active energy" value={`${Math.round(activity.active_energy_kcal).toLocaleString()} kcal`} />}
     </dl>
     <section className="rounded-3xl border border-[#ff0032]/30 bg-[#ff0032]/5 p-5">
-      <p className="text-[10px] font-black uppercase tracking-[.2em] text-[#ff0032]">PHATBOT result</p>
+      <p className="text-[10px] font-black uppercase tracking-[.2em] text-[#ff0032]">PHATBOT Activity Report</p>
       <h2 className="mt-2 text-2xl font-black">{headline}</h2>
       <h3 className="mt-5 text-lg font-black">Workout summary</h3>
       <p className="mt-3 leading-7 text-zinc-200">{wholeActivitySummary(activity)}</p>
