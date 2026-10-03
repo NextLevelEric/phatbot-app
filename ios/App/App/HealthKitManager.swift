@@ -106,20 +106,20 @@ final class HealthKitManager {
         }
     }
 
-    private struct NutritionSeries { let values: [String: Double]; let origins: Set<String> }
+    private struct NutritionSeries { let values: [String: Double]; let originsByDay: [String: Set<String>] }
 
     private func fetchNutritionSeries(_ identifier: HKQuantityTypeIdentifier, unit: HKUnit, start: Date, end: Date, completion: @escaping (Result<NutritionSeries, Error>) -> Void) {
-        guard let type = HKObjectType.quantityType(forIdentifier: identifier) else { completion(.success(NutritionSeries(values: [:], origins: []))); return }
+        guard let type = HKObjectType.quantityType(forIdentifier: identifier) else { completion(.success(NutritionSeries(values: [:], originsByDay: [:]))); return }
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end)
         store.execute(HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
             if let error { completion(.failure(error)); return }
-            var values = [String: Double](); var origins = Set<String>()
+            var values = [String: Double](); var originsByDay = [String: Set<String>]()
             for sample in samples as? [HKQuantitySample] ?? [] {
                 let day = self.dayString(sample.startDate)
                 values[day, default: 0] += sample.quantity.doubleValue(for: unit)
-                origins.insert(sample.sourceRevision.source.bundleIdentifier)
+                originsByDay[day, default: []].insert(sample.sourceRevision.source.bundleIdentifier)
             }
-            completion(.success(NutritionSeries(values: values, origins: origins)))
+            completion(.success(NutritionSeries(values: values, originsByDay: originsByDay)))
         })
     }
 
@@ -138,8 +138,8 @@ final class HealthKitManager {
         group.notify(queue: .global()) {
             if let capturedError { completion(.failure(capturedError)); return }
             let days = Set(energy.values.keys).union(protein.values.keys).union(carbs.values.keys).union(fat.values.keys)
-            let origins = Array(energy.origins.union(protein.origins).union(carbs.origins).union(fat.origins)).sorted()
             let rows = days.sorted().map { day -> [String: Any] in
+                let origins = Array((energy.originsByDay[day] ?? []).union(protein.originsByDay[day] ?? []).union(carbs.originsByDay[day] ?? []).union(fat.originsByDay[day] ?? [])).sorted()
                 var row: [String: Any] = ["date": day, "sourceOrigins": origins]
                 if let value = energy.values[day] { row["energyKcal"] = value }
                 if let value = protein.values[day] { row["proteinG"] = value }
