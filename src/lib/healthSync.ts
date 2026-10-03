@@ -105,7 +105,7 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
     // HealthKit conceals read denial as empty results/zero aggregates. Do not
     // overwrite history or stamp success on an entirely unreadable snapshot.
     const nativeWarnings = (snapshot.readWarnings ?? []).map(warning => `Health read warning: ${warning}`);
-    const nutrition = (snapshot.nutritionDaily ?? []).filter(row => /^\\d{4}-\\d{2}-\\d{2}$/.test(row.date) && [row.energyKcal,row.proteinG,row.carbohydrateG,row.fatG].some(value => value != null)).map(row => ({
+    const nutrition = (snapshot.nutritionDaily ?? []).filter(row => /^\d{4}-\d{2}-\d{2}$/.test(row.date) && [row.energyKcal,row.proteinG,row.carbohydrateG,row.fatG].some(value => value != null)).map(row => ({
       athlete_user_id:userId, source, nutrition_date:row.date,
       energy_kcal:numberOrNull(row.energyKcal), protein_g:numberOrNull(row.proteinG), carbohydrate_g:numberOrNull(row.carbohydrateG), fat_g:numberOrNull(row.fatG),
       source_origins:[...new Set(row.sourceOrigins ?? [])].filter(Boolean), observed_at:snapshot.endDate, updated_at:new Date().toISOString(),
