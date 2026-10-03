@@ -83,13 +83,13 @@ export function weeklyAnswer(payload: WeeklyReportPayload) {
   const wins: string[] = [];
   const concerns: string[] = [];
   const actions: string[] = [];
-  if (payload.progressive_overload.status === "available" && (payload.progressive_overload.wins ?? 0) > 0) wins.push(\`${payload.progressive_overload.wins} strength progression win${payload.progressive_overload.wins === 1 ? "" : "s"} recorded.\`);
-  if (payload.cardio.comparable_improvements.length > 0) wins.push(\`${payload.cardio.comparable_improvements.length} cardio benchmark${payload.cardio.comparable_improvements.length === 1 ? "" : "s"} improved.\`);
+  if (payload.progressive_overload.status === "available" && (payload.progressive_overload.wins ?? 0) > 0) wins.push(`${payload.progressive_overload.wins} strength progression win${payload.progressive_overload.wins === 1 ? "" : "s"} recorded.`);
+  if (payload.cardio.comparable_improvements.length > 0) wins.push(`${payload.cardio.comparable_improvements.length} cardio benchmark${payload.cardio.comparable_improvements.length === 1 ? "" : "s"} improved.`);
   if (payload.progressive_overload.status === "incomplete") concerns.push("Strength progression scoring is incomplete, so PHATBOT will not guess at your result.");
-  if (payload.sleep?.status === "partial") concerns.push(\`Sleep context is partial (${payload.sleep.recorded_nights} nights recorded).\`);
+  if (payload.sleep?.status === "partial") concerns.push(`Sleep context is partial (${payload.sleep.recorded_nights} nights recorded).`);
   if (payload.sleep?.status === "unavailable") concerns.push("Sleep context is unavailable for this week.");
-  if (payload.bodyweight) wins.push(\`Body weight moved ${signedValue(payload.bodyweight.change)} ${payload.bodyweight.unit} across recorded measurements.\`);
-  if (payload.next_targets[0]) actions.push(\`${payload.next_targets[0].label}: ${payload.next_targets[0].target}\`);
+  if (payload.bodyweight) wins.push(`Body weight moved ${signedValue(payload.bodyweight.change)} ${payload.bodyweight.unit} across recorded measurements.`);
+  if (payload.next_targets[0]) actions.push(`${payload.next_targets[0].label}: ${payload.next_targets[0].target}`);
   else if (payload.workouts.completed === 0) actions.push("Complete your next training session to establish a fresh comparison.");
   else actions.push("Repeat comparable training next week so PHATBOT can measure the trend.");
   return { wins, concerns, actions };
