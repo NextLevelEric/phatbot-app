@@ -105,8 +105,27 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
     // HealthKit conceals read denial as empty results/zero aggregates. Do not
     // overwrite history or stamp success on an entirely unreadable snapshot.
     const nativeWarnings = (snapshot.readWarnings ?? []).map(warning => `Health read warning: ${warning}`);
-    const hasReadableData = completeNights.length > 0 || workouts.length > 0 || daily.some(row => [row.steps,row.active_energy_kcal,row.sleep_seconds,row.resting_heart_rate_bpm,row.hrv_ms].some(value => (value ?? 0) > 0));
+    const nutrition = (snapshot.nutritionDaily ?? []).filter(row => /^\d{4}-\d{2}-\d{2}$/.test(row.date) && [row.energyKcal,row.proteinG,row.carbohydrateG,row.fatG].some(value => value != null)).map(row => ({
+      athlete_user_id:userId, source, nutrition_date:row.date,
+      energy_kcal:numberOrNull(row.energyKcal), protein_g:numberOrNull(row.proteinG), carbohydrate_g:numberOrNull(row.carbohydrateG), fat_g:numberOrNull(row.fatG),
+      source_origins:[...new Set(row.sourceOrigins ?? [])].filter(Boolean), observed_at:snapshot.endDate, updated_at:new Date().toISOString(),
+    }));
+    const hasReadableData = completeNights.length > 0 || workouts.length > 0 || nutrition.length > 0 || daily.some(row => [row.steps,row.active_energy_kcal,row.sleep_seconds,row.resting_heart_rate_bpm,row.hrv_ms].some(value => (value ?? 0) > 0));
     if (!hasReadableData) return { ...saved, provider:snapshot.provider, status:'empty', syncedAt:null, warnings:nativeWarnings, snapshot, latestWorkoutId:null };
+
+    stage = 'nutrition';
+    if (nutrition.length) {
+      const { data: previous, error } = await supabase.from('health_nutrition_daily').select('nutrition_date,energy_kcal,protein_g,carbohydrate_g,fat_g,source_origins').eq('athlete_user_id',userId).eq('source',source).in('nutrition_date',nutrition.map(row=>row.nutrition_date));
+      if (error) throw error;
+      const byDate = new Map((previous ?? []).map(row=>[row.nutrition_date,row]));
+      const merged = nutrition.map(row => { const prior = byDate.get(row.nutrition_date); return { ...row,
+        energy_kcal:row.energy_kcal ?? prior?.energy_kcal ?? null, protein_g:row.protein_g ?? prior?.protein_g ?? null,
+        carbohydrate_g:row.carbohydrate_g ?? prior?.carbohydrate_g ?? null, fat_g:row.fat_g ?? prior?.fat_g ?? null,
+        source_origins:[...new Set([...(prior?.source_origins ?? []),...row.source_origins])],
+      }; });
+      const result = await supabase.from('health_nutrition_daily').upsert(merged,{onConflict:'athlete_user_id,source,nutrition_date'}).select('nutrition_date');
+      if (result.error || result.data?.length !== merged.length) throw new Error('Nutrition save not confirmed');
+    }
 
     stage = 'daily records';
     if (daily.length) {

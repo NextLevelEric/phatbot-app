@@ -11,7 +11,7 @@ final class HealthKitManager {
     func requestReadAuthorization(completion: @escaping (Result<Void, Error>) -> Void) {
         guard isAvailable else { completion(.failure(HealthKitError.notAvailable)); return }
         var readTypes = Set<HKObjectType>()
-        let quantityIdentifiers: [HKQuantityTypeIdentifier] = [.restingHeartRate, .heartRateVariabilitySDNN, .activeEnergyBurned, .stepCount, .heartRate, .distanceWalkingRunning, .distanceCycling]
+        let quantityIdentifiers: [HKQuantityTypeIdentifier] = [.restingHeartRate, .heartRateVariabilitySDNN, .activeEnergyBurned, .stepCount, .heartRate, .distanceWalkingRunning, .distanceCycling, .dietaryEnergyConsumed, .dietaryProtein, .dietaryCarbohydrates, .dietaryFatTotal]
         for identifier in quantityIdentifiers { if let type = HKObjectType.quantityType(forIdentifier: identifier) { readTypes.insert(type) } }
         readTypes.insert(HKObjectType.workoutType())
         if let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { readTypes.insert(sleepType) }
@@ -39,6 +39,7 @@ final class HealthKitManager {
         group.enter(); fetchDailyMetrics(start: start, end: end) { if case .success(let v) = $0 { assign("dailyMetrics", v) } else if case .failure(let e) = $0 { warn("daily activity", e) }; group.leave() }
         group.enter(); fetchWorkouts(start: start, end: end) { if case .success(let v) = $0 { assign("workouts", v) } else if case .failure(let e) = $0 { warn("workouts", e) }; group.leave() }
         group.enter(); fetchSleep(start: start, end: end) { if case .success(let v) = $0 { assign("sleep", v) } else if case .failure(let e) = $0 { warn("sleep", e) }; group.leave() }
+        group.enter(); fetchNutritionDaily(start: start, end: end) { if case .success(let v) = $0 { assign("nutritionDaily", v) } else if case .failure(let e) = $0 { warn("nutrition", e) }; group.leave() }
         group.notify(queue: .main) {
             if !readWarnings.isEmpty { payload["readWarnings"] = readWarnings }
             completion(.success(payload))
@@ -102,6 +103,51 @@ final class HealthKitManager {
             // must not discard an otherwise readable HealthKit workout.
             var row: [String: Any] = ["sourceWorkoutId": workout.uuid.uuidString, "activityType": workout.workoutActivityType.rawValue, "activityName": self.activityName(workout.workoutActivityType), "startDate": self.iso(workout.startDate), "endDate": self.iso(workout.endDate), "durationSeconds": workout.duration]
             if let energy = workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()) { row["activeEnergyKcal"] = energy }; if let distanceMeters { row["distanceMeters"] = distanceMeters }; if let averageHeartRate { row["averageHeartRateBpm"] = averageHeartRate }; completion(.success(row))
+        }
+    }
+
+    private struct NutritionSeries { let values: [String: Double]; let originsByDay: [String: Set<String>] }
+
+    private func fetchNutritionSeries(_ identifier: HKQuantityTypeIdentifier, unit: HKUnit, start: Date, end: Date, completion: @escaping (Result<NutritionSeries, Error>) -> Void) {
+        guard let type = HKObjectType.quantityType(forIdentifier: identifier) else { completion(.success(NutritionSeries(values: [:], originsByDay: [:]))); return }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end)
+        store.execute(HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
+            if let error { completion(.failure(error)); return }
+            var values = [String: Double](); var originsByDay = [String: Set<String>]()
+            for sample in samples as? [HKQuantitySample] ?? [] {
+                let day = self.dayString(sample.startDate)
+                values[day, default: 0] += sample.quantity.doubleValue(for: unit)
+                originsByDay[day, default: []].insert(sample.sourceRevision.source.bundleIdentifier)
+            }
+            completion(.success(NutritionSeries(values: values, originsByDay: originsByDay)))
+        })
+    }
+
+    private func fetchNutritionDaily(start: Date, end: Date, completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
+        let group = DispatchGroup(); let lock = NSLock(); var capturedError: Error?
+        var energy = NutritionSeries(values: [:], origins: []), protein = NutritionSeries(values: [:], origins: []), carbs = NutritionSeries(values: [:], origins: []), fat = NutritionSeries(values: [:], origins: [])
+        func read(_ identifier: HKQuantityTypeIdentifier, unit: HKUnit, assign: @escaping (NutritionSeries) -> Void) {
+            group.enter(); fetchNutritionSeries(identifier, unit: unit, start: start, end: end) { result in
+                lock.lock(); switch result { case .success(let series): assign(series); case .failure(let error): if capturedError == nil { capturedError = error } }; lock.unlock(); group.leave()
+            }
+        }
+        read(.dietaryEnergyConsumed, unit: .kilocalorie()) { energy = $0 }
+        read(.dietaryProtein, unit: .gram()) { protein = $0 }
+        read(.dietaryCarbohydrates, unit: .gram()) { carbs = $0 }
+        read(.dietaryFatTotal, unit: .gram()) { fat = $0 }
+        group.notify(queue: .global()) {
+            if let capturedError { completion(.failure(capturedError)); return }
+            let days = Set(energy.values.keys).union(protein.values.keys).union(carbs.values.keys).union(fat.values.keys)
+            let rows = days.sorted().map { day -> [String: Any] in
+                let origins = Array((energy.originsByDay[day] ?? []).union(protein.originsByDay[day] ?? []).union(carbs.originsByDay[day] ?? []).union(fat.originsByDay[day] ?? [])).sorted()
+                var row: [String: Any] = ["date": day, "sourceOrigins": origins]
+                if let value = energy.values[day] { row["energyKcal"] = value }
+                if let value = protein.values[day] { row["proteinG"] = value }
+                if let value = carbs.values[day] { row["carbohydrateG"] = value }
+                if let value = fat.values[day] { row["fatG"] = value }
+                return row
+            }
+            completion(.success(rows))
         }
     }
 

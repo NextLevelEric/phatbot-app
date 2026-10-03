@@ -32,6 +32,14 @@ export type HealthKitSnapshot = {
       distanceMeters: number;
     }>;
   }>;
+  nutritionDaily?: Array<{
+    date: string;
+    energyKcal?: number | null;
+    proteinG?: number | null;
+    carbohydrateG?: number | null;
+    fatG?: number | null;
+    sourceOrigins?: string[];
+  }>;
   readWarnings?: string[];
   sleep?: Array<{
     value: number;
