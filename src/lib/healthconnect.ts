@@ -29,6 +29,14 @@ export type HealthConnectSnapshot = {
       distanceMeters: number;
     }>;
   }>;
+  nutritionDaily?: Array<{
+    date: string;
+    energyKcal?: number | null;
+    proteinG?: number | null;
+    carbohydrateG?: number | null;
+    fatG?: number | null;
+    sourceOrigins?: string[];
+  }>;
   sleep?: Array<{
     value: number;
     startDate: string;
