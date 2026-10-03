@@ -6,7 +6,6 @@ import LiveWorkoutAccordion from "@/components/LiveWorkoutAccordion";
 import LiveWorkoutConnectionStatus from "@/components/LiveWorkoutConnectionStatus";
 import PendingWorkoutRoomRedirect from "@/components/PendingWorkoutRoomRedirect";
 import NativeInteractionGuard from "@/components/NativeInteractionGuard";
-import HealthConnectionPanel from "@/components/HealthConnectionPanel";
 import AppFooter from "@/components/AppFooter";
 import "./globals.css";
 import "./theme-overrides.css";
@@ -34,7 +33,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <LiveWorkoutAccordion />
         <LiveWorkoutConnectionStatus />
         {children}
-        <HealthConnectionPanel />
         <AppFooter />
         <AthleteBottomNav />
       </body>

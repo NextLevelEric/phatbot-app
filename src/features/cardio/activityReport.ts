@@ -74,6 +74,39 @@ export function reportSegments(activity: Activity, current: CardioSegmentRow[], 
   });
 }
 
+export type WalkingProgress = {
+  walks: Activity[];
+  latest: Activity | null;
+  previous: Activity | null;
+  fastestPace: Activity | null;
+  longestDistance: Activity | null;
+  latestPaceSecondsPerMile: number | null;
+  previousPaceSecondsPerMile: number | null;
+  paceChangeSeconds: number | null;
+};
+
+function paceSecondsPerMile(activity: Activity) {
+  if (!positive(activity.distance_meters) || !positive(activity.duration_seconds)) return null;
+  return Number(activity.duration_seconds) / (Number(activity.distance_meters) / MILE_METERS);
+}
+
+export function walkingProgress(activities: Activity[], asOf = Date.now()): WalkingProgress {
+  const walks = activities
+    .filter(row => activityKind(row) === 'Walk' && Date.parse(row.started_at) <= asOf)
+    .sort((a,b) => Date.parse(b.started_at) - Date.parse(a.started_at));
+  const latest = walks[0] ?? null;
+  const previous = walks[1] ?? null;
+  const paceWalks = walks.filter(row => paceSecondsPerMile(row) != null);
+  const fastestPace = [...paceWalks].sort((a,b) => paceSecondsPerMile(a)! - paceSecondsPerMile(b)!)[0] ?? null;
+  const distanceWalks = walks.filter(row => positive(row.distance_meters));
+  const longestDistance = [...distanceWalks].sort((a,b) => Number(b.distance_meters) - Number(a.distance_meters))[0] ?? null;
+  const latestPaceSecondsPerMile = latest ? paceSecondsPerMile(latest) : null;
+  const previousPaceSecondsPerMile = previous ? paceSecondsPerMile(previous) : null;
+  const paceChangeSeconds = latestPaceSecondsPerMile != null && previousPaceSecondsPerMile != null
+    ? previousPaceSecondsPerMile - latestPaceSecondsPerMile : null;
+  return { walks, latest, previous, fastestPace, longestDistance, latestPaceSecondsPerMile, previousPaceSecondsPerMile, paceChangeSeconds };
+}
+
 export function dashboardSummary(activities: Activity[], asOf: number) {
   const current = activities.filter(row => activityKind(row) && Date.parse(row.started_at) > asOf - 30 * DAY_MS && Date.parse(row.started_at) <= asOf);
   const previous = activities.filter(row => activityKind(row) && Date.parse(row.started_at) > asOf - 60 * DAY_MS && Date.parse(row.started_at) <= asOf - 30 * DAY_MS);
