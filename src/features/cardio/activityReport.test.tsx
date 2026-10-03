@@ -85,3 +85,18 @@ describe('cardio dashboard', () => {
     expect(result.count).toBe(1); expect(result.distanceCount).toBe(0); expect(result.groups[0].previousCount).toBe(1);
   });
 });
+
+
+describe('walking progression', () => {
+  it('keeps walking separate from running and compares whole-walk pace', () => {
+    const walks = [
+      { ...september27Run, id:'walk-new', activity_name:'Walking', started_at:'2026-09-29T12:00:00Z', distance_meters:3218.688, duration_seconds:2400 },
+      { ...september27Run, id:'walk-old', activity_name:'Walk', started_at:'2026-09-22T12:00:00Z', distance_meters:3218.688, duration_seconds:2700 },
+      { ...september27Run, id:'run-fast', activity_name:'Running', started_at:'2026-09-30T12:00:00Z', distance_meters:3218.688, duration_seconds:1200 },
+    ];
+    const result = walkingProgress(walks, Date.parse('2026-10-01T00:00:00Z'));
+    expect(result.walks.map(row => row.id)).toEqual(['walk-new','walk-old']);
+    expect(result.paceChangeSeconds).toBe(150);
+    expect(result.fastestPace?.id).toBe('walk-new');
+  });
+});
