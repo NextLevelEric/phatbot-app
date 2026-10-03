@@ -12,6 +12,7 @@ export type SyncResult = {
   syncedAt: string | null;
   warnings: string[];
   snapshot: PhatbotHealthSnapshot;
+  latestWorkoutId: string | null;
 };
 
 type Counts = Pick<SyncResult, 'dailyMetrics' | 'workouts' | 'cardioSegments'>;
@@ -105,7 +106,7 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
     // overwrite history or stamp success on an entirely unreadable snapshot.
     const nativeWarnings = (snapshot.readWarnings ?? []).map(warning => `Health read warning: ${warning}`);
     const hasReadableData = completeNights.length > 0 || workouts.length > 0 || daily.some(row => [row.steps,row.active_energy_kcal,row.sleep_seconds,row.resting_heart_rate_bpm,row.hrv_ms].some(value => (value ?? 0) > 0));
-    if (!hasReadableData) return { ...saved, provider:snapshot.provider, status:'empty', syncedAt:null, warnings:nativeWarnings, snapshot };
+    if (!hasReadableData) return { ...saved, provider:snapshot.provider, status:'empty', syncedAt:null, warnings:nativeWarnings, snapshot, latestWorkoutId:null };
 
     stage = 'daily records';
     if (daily.length) {
@@ -128,6 +129,7 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
       if (result.error || new Set((result.data ?? []).map(row=>row.metric_date)).size !== daily.length) throw new Error('Daily save not confirmed');
       saved.dailyMetrics = daily.length;
     }
+    let latestWorkoutId: string | null = null;
     stage = 'workouts';
     if (workouts.length) {
       const { data: previous, error: readError } = await supabase.from('cardio_activities').select('source_workout_id,distance_meters,active_energy_kcal,average_heart_rate_bpm').eq('athlete_user_id',userId).eq('source',source).in('source_workout_id',workouts.map(row=>row.source_workout_id));
@@ -143,6 +145,8 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
       const ids = new Map((data ?? []).map(row=>[row.source_workout_id,row.id]));
       if (workouts.some(row=>!ids.get(row.source_workout_id))) throw new Error('Workout save not confirmed');
       saved.workouts = ids.size;
+      const latestWorkout = [...workouts].sort((a,b)=>Date.parse(b.started_at)-Date.parse(a.started_at))[0];
+      latestWorkoutId = latestWorkout ? ids.get(latestWorkout.source_workout_id) ?? null : null;
       const segments = nativeWorkouts.flatMap(workout=>buildStandardizedCardioSegments(workout.activityName,workout.distanceSamples).map(segment=>({
         athlete_user_id:userId, cardio_activity_id:ids.get(workout.sourceWorkoutId), segment_key:segment.key, segment_label:segment.label,
         distance_meters:segment.distanceMeters, duration_seconds:segment.durationSeconds, start_offset_seconds:segment.startOffsetSeconds,
@@ -174,7 +178,7 @@ async function performSync(supabase: ReturnType<typeof createSupabaseBrowserClie
       const { error } = await supabase.rpc('refresh_competition_standings_after_health_sync');
       if (error) warnings.push('Health data is saved, but competition standings could not refresh yet.');
     } catch { warnings.push('Health data is saved, but competition standings could not refresh yet.'); }
-    return { ...saved, provider:snapshot.provider, status:'synced', syncedAt, warnings, snapshot };
+    return { ...saved, provider:snapshot.provider, status:'synced', syncedAt, warnings, snapshot, latestWorkoutId };
   } catch (error) {
     if (error instanceof HealthSyncError) throw error;
     if (stage === 'read') throw new HealthSyncError(stage,{...saved},'PHATBOT could not read your health data. Check PHATBOT permissions in Apple Health or Health Connect, then try Sync Health Data again.');
