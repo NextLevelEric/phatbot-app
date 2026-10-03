@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 export const APP_ID = 'com.nextleveldigitalmedia.phatbot';
-export const HEALTH_PERMISSIONS = ['STEPS','ACTIVE_CALORIES_BURNED','EXERCISE','DISTANCE','HEART_RATE','RESTING_HEART_RATE','HEART_RATE_VARIABILITY','SLEEP','WEIGHT'];
+export const HEALTH_PERMISSIONS = ['STEPS','ACTIVE_CALORIES_BURNED','EXERCISE','DISTANCE','HEART_RATE','SLEEP'];
 function replaceOnce(text, marker, replacement) {
   if (text.split(marker).length !== 2) throw new Error(`Unexpected Capacitor template: ${marker}`);
   return text.replace(marker, replacement);
@@ -22,10 +22,17 @@ export function installBridge(root='android') {
   const manifest=path.join(root,'app/src/main/AndroidManifest.xml');
   text=fs.readFileSync(manifest,'utf8');
   text=replaceOnce(text,'<application',HEALTH_PERMISSIONS.map(name=>`<uses-permission android:name="android.permission.health.READ_${name}" />`).join('\n    ')+'\n    <application');
+  const providerQuery='<package android:name="com.google.android.apps.healthdata" />';
+  text=text.includes('</queries>') ? replaceOnce(text,'</queries>',providerQuery+'\n</queries>')
+    : replaceOnce(text,'</manifest>',`<queries>${providerQuery}</queries>\n</manifest>`);
+  text=replaceOnce(text,'</application>',fs.readFileSync('android-native/health-connect-activities.xml','utf8')+'\n</application>');
   fs.writeFileSync(manifest,text);
   const target=path.join(root,'app/src/main/java',...APP_ID.split('.'));
   fs.mkdirSync(target,{recursive:true});
-  for(const name of ['HealthConnectPlugin.kt','MainActivity.java'])fs.copyFileSync(path.join('android-native',name),path.join(target,name));
+  for(const name of ['HealthConnectPlugin.kt','HealthConnectReadAccess.kt','MainActivity.java','HealthConnectPrivacyActivity.java','HealthConnectOnboardingActivity.java'])fs.copyFileSync(path.join('android-native',name),path.join(target,name));
+  const testTarget=path.join(root,'app/src/test/java',...APP_ID.split('.'));
+  fs.mkdirSync(testTarget,{recursive:true});
+  fs.copyFileSync('android-native/tests/HealthConnectReadAccessTest.kt',path.join(testTarget,'HealthConnectReadAccessTest.kt'));
 }
 export function configureCompatibility(root='android') {
   // Health Connect 1.1.0 requires API 26; Capacitor's template defaults to 24.
