@@ -69,7 +69,7 @@ export default function CoachExerciseComparisonPage() {
         return;
       }
 
-      const athleteIds = ((linkRows ?? []) as LinkRow[]).map((row) => row.athlete_user_id);
+      const athleteIds = [...new Set([user.id, ...((linkRows ?? []) as LinkRow[]).map((row) => row.athlete_user_id)])];
       if (!athleteIds.length) {
         setLoading(false);
         return;
