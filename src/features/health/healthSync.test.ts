@@ -177,3 +177,20 @@ describe('interval-derived sleep sync', () => {
     await syncNativeHealth();expect(tables.health_sleep_nights).toBeUndefined();
   });
 });
+
+
+describe('nutrition health sync', () => {
+  it('persists available macros with provenance and preserves missing fields on a later partial read', async () => {
+    mocks.snapshot.mockResolvedValue({...fixture(),nutritionDaily:[{date:'2026-09-20',energyKcal:2100,proteinG:165,carbohydrateG:220,fatG:70,sourceOrigins:['com.example.foodlog']}]});
+    await syncNativeHealth();
+    expect(tables.health_nutrition_daily).toHaveLength(1);
+    expect(tables.health_nutrition_daily[0]).toMatchObject({source:'healthkit',nutrition_date:'2026-09-20',energy_kcal:2100,protein_g:165,carbohydrate_g:220,fat_g:70,source_origins:['com.example.foodlog']});
+    mocks.snapshot.mockResolvedValue({...fixture(),nutritionDaily:[{date:'2026-09-20',energyKcal:2050,proteinG:170,sourceOrigins:['com.example.foodlog']}]});
+    await syncNativeHealth();
+    expect(tables.health_nutrition_daily[0]).toMatchObject({energy_kcal:2050,protein_g:170,carbohydrate_g:220,fat_g:70});
+  });
+  it('does not invent a nutrition row when the health store has no nutrition data', async () => {
+    await syncNativeHealth();
+    expect(tables.health_nutrition_daily).toBeUndefined();
+  });
+});
