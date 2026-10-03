@@ -89,6 +89,9 @@ jobs:
           cp android-native/HealthConnectPlugin.kt "$pkg/HealthConnectPlugin.kt"
           cp android-native/MainActivity.java "$pkg/MainActivity.java"
 
+      - name: Apply Health Connect SDK compatibility
+        run: node scripts/android/prepare.mjs compatibility
+
       - name: Build debug APK
         working-directory: android
         run: |

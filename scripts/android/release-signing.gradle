@@ -1,0 +1,37 @@
+// Applied only by the dedicated Play workflow. Never persist secret values.
+def releaseVersion = new Properties()
+file('phatbot-version.properties').withInputStream { releaseVersion.load(it) }
+def signingVariables = ['ANDROID_KEYSTORE_PATH', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD']
+def requireSigning = {
+    def missing = signingVariables.findAll { !System.getenv(it) }
+    if (!missing.isEmpty()) throw new GradleException('Missing Android release signing configuration: ' + missing.join(', '))
+    if (!file(System.getenv('ANDROID_KEYSTORE_PATH')).isFile()) throw new GradleException('Android upload keystore file is missing')
+}
+android {
+    defaultConfig {
+        versionCode releaseVersion.getProperty('versionCode').toInteger()
+        versionName releaseVersion.getProperty('versionName')
+    }
+    signingConfigs {
+        phatbotUpload {
+            storeFile file(System.getenv('ANDROID_KEYSTORE_PATH') ?: 'MISSING_UPLOAD_KEYSTORE')
+            storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+            keyAlias System.getenv('ANDROID_KEY_ALIAS')
+            keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+        }
+    }
+    buildTypes {
+        release {
+            debuggable false
+            signingConfig signingConfigs.phatbotUpload
+        }
+    }
+}
+def verifySigning = tasks.register('verifyPhatbotReleaseSigning') {
+    doLast { requireSigning() }
+}
+tasks.configureEach { task ->
+    if (task.name in ['bundleRelease', 'signReleaseBundle', 'validateSigningRelease']) {
+        task.dependsOn(verifySigning)
+    }
+}
