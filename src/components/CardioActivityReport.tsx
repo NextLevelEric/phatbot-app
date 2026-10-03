@@ -12,6 +12,15 @@ export default function CardioActivityReport({ data }: { data: ActivityReportDat
   const motion = averageMotion(activity);
   const milestones = history ? activityMilestones(activity, history) : [];
   const comparisons = reportSegments(activity, segments ?? [], data.previousSegments, data.previousActivities);
+  const improved = comparisons.filter(item => item.previous && item.segment.duration_seconds < item.previous.segment.duration_seconds);
+  const bestImprovement = improved.sort((a,b) => ((a.previous!.segment.duration_seconds-a.segment.duration_seconds)/a.previous!.segment.duration_seconds)-((b.previous!.segment.duration_seconds-b.segment.duration_seconds)/b.previous!.segment.duration_seconds)).at(-1) ?? null;
+  const headline = bestImprovement
+    ? `Progress detected: your ${bestImprovement.segment.segment_label} effort was faster than your previous comparable effort.`
+    : milestones.length
+      ? milestones[0]
+      : comparisons.some(item => item.previous)
+        ? "Workout recorded. Your comparable efforts are shown below."
+        : "Baseline recorded. Complete another comparable effort to measure progression.";
   return <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6">
     <Link href="/progress/activity" className="min-h-11 py-2 text-sm font-bold text-zinc-400">← Activity &amp; Cardio</Link>
     <header><p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">Completed activity</p><h1 className="mt-2 text-3xl font-black">{activityLabel(activity)} report</h1><p className="mt-2 text-sm text-zinc-400">{new Date(activity.started_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })} · {sourceLabel(activity.source)}</p></header>
@@ -23,7 +32,9 @@ export default function CardioActivityReport({ data }: { data: ActivityReportDat
       {positive(activity.active_energy_kcal) && <ActivityMetric label="Active energy" value={`${Math.round(activity.active_energy_kcal).toLocaleString()} kcal`} />}
     </dl>
     <section className="rounded-3xl border border-[#ff0032]/30 bg-[#ff0032]/5 p-5">
-      <h2 className="text-lg font-black">PHATBOT Activity Report</h2>
+      <p className="text-[10px] font-black uppercase tracking-[.2em] text-[#ff0032]">PHATBOT Activity Report</p>
+      <h2 className="mt-2 text-2xl font-black">{headline}</h2>
+      <h3 className="mt-5 text-lg font-black">Workout summary</h3>
       <p className="mt-3 leading-7 text-zinc-200">{wholeActivitySummary(activity)}</p>
       {milestones.map(item => <p key={item} className="mt-3 font-semibold">{item}</p>)}
       {history === null ? <p className="mt-3 text-sm text-amber-300">Historical comparisons could not load. No milestone claims are shown.</p> : <p className="mt-3 text-xs leading-5 text-zinc-400">Milestones use stored activities of the same type during the 30 days before this workout. Missing or unsynced history is not included; later workouts do not change this comparison.</p>}

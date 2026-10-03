@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { getNativeHealthProvider, requestNativeHealthAccess, type PhatbotHealthProvider } from "@/lib/health";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
@@ -19,6 +20,7 @@ export default function HealthConnectionCard() {
   const [state, setState] = useState<State>("checking");
   const [message, setMessage] = useState("");
   const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [latestWorkoutId, setLatestWorkoutId] = useState<string | null>(null);
   const name = providerName(provider);
   const busy = useRef(false);
 
@@ -62,6 +64,7 @@ export default function HealthConnectionCard() {
       if (!result) { setState("disconnected"); setMessage(`${name} is unavailable on this device.`); return; }
       setState(result.status === "synced" ? "connected" : "disconnected");
       if (result.syncedAt) setLastSynced(result.syncedAt);
+      setLatestWorkoutId(result.latestWorkoutId);
       setMessage(healthSyncSummary(result));
     } catch (error) {
       setState("error"); setMessage(healthSyncErrorMessage(error));
@@ -74,6 +77,7 @@ export default function HealthConnectionCard() {
     {lastSynced && <p className="text-xs text-zinc-500">Last recorded sync {new Date(lastSynced).toLocaleString()}</p>}
     <div className="grid gap-2 sm:grid-cols-2">{state === "disconnected" || state === "error" ? <button type="button" onClick={() => void sync(true)} className="phat-accent-bg rounded-lg px-4 py-3 font-semibold">Connect {name}</button> : null}<button type="button" disabled={state === "checking" || state === "syncing"} onClick={() => void sync()} className="rounded-lg border border-zinc-700 px-4 py-3 font-semibold disabled:opacity-50">{state === "syncing" ? "Syncing..." : "Sync Health Data"}</button></div>
     {message && <p className="phat-signal rounded-lg border p-3 text-sm text-zinc-200">{message}</p>}
+    {latestWorkoutId && <Link href={`/progress/activity/${latestWorkoutId}`} className="phat-accent-bg rounded-lg px-4 py-3 text-center font-semibold">View Latest Cardio Report →</Link>}
     <p className="text-xs leading-5 text-zinc-500">PHATBOT reads only the health categories you approve. You can change access later in {name} settings.</p>
   </section>;
 }
