@@ -87,6 +87,22 @@ describe('shared native health authority', () => {
     await syncNativeHealth(); expect(tables.health_daily_metrics).toHaveLength(1);
     expect(tables.health_daily_metrics.some(row=>row.steps===140000||row.metric_date==='2026-09-21')).toBe(false);
   });
+  it('Android partial grants preserve historical quantities, RHR and HRV without duplicating workouts', async () => {
+    const snapshot = fixture(); snapshot.provider = 'health_connect';
+    snapshot.workouts!.forEach(row => { delete row.distanceSamples; });
+    mocks.snapshot.mockResolvedValue(snapshot); await syncNativeHealth();
+    Object.assign(tables.health_daily_metrics[0], { resting_heart_rate_bpm: 55, hrv_ms: 42 });
+    delete snapshot.dailyMetrics![0].steps;
+    delete snapshot.workouts![0].distanceMeters;
+    delete snapshot.workouts![0].averageHeartRateBpm;
+    snapshot.readWarnings = ['Only approved categories were read.'];
+    const result = await syncNativeHealth();
+    expect(tables.health_daily_metrics[0]).toMatchObject({ steps: 12000, resting_heart_rate_bpm: 55, hrv_ms: 42 });
+    expect(tables.cardio_activities).toHaveLength(2);
+    expect(tables.cardio_activities[0]).toMatchObject({ distance_meters: 3218.688, average_heart_rate_bpm: 110 });
+    expect(result?.warnings).toContain('Health read warning: Only approved categories were read.');
+    expect(result?.cardioSegments).toBe(0);
+  });
   it.each([{ dailyMetrics: [] }, { dailyMetrics: [{ date:'2026-09-20',steps:0,activeEnergyKcal:0 }] }])('treats an empty or all-zero native read as diagnostic, without erasing history', async ({ dailyMetrics }) => {
     mocks.snapshot.mockResolvedValue({...fixture(),workouts:[],dailyMetrics,steps:0});
     const result=await syncNativeHealth(); expect(result).toMatchObject({status:'empty',dailyMetrics:0,workouts:0,cardioSegments:0,syncedAt:null});

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import AndroidHealthConnectionCard from "@/components/AndroidHealthConnectionCard";
 import { getNativeHealthProvider, requestNativeHealthAccess, type PhatbotHealthProvider } from "@/lib/health";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
@@ -27,6 +28,7 @@ export default function HealthConnectionCard() {
   useEffect(() => {
     let active = true;
     async function load() {
+      if (provider === "health_connect") return;
       if (provider === "none") { if (active) setState("unavailable"); return; }
       const supabase = createSupabaseBrowserClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -75,6 +77,7 @@ export default function HealthConnectionCard() {
     } finally { busy.current = false; }
   }
 
+  if (provider === "health_connect") return <AndroidHealthConnectionCard />;
   if (state === "unavailable") return null;
   return <section className="flex flex-col gap-4 rounded-2xl border border-zinc-800 p-5">
     <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-500">Health & Wearables</p><h2 className="mt-1 text-xl font-semibold">{name}</h2><p className="mt-1 text-sm text-zinc-400">Bring steps, cardio, heart rate, sleep, and nutrition into PHATBOT.</p></div><span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${state === "connected" ? "bg-emerald-400" : state === "error" ? "bg-amber-400" : "bg-zinc-600"}`} /></div>

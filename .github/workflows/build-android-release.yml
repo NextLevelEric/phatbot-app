@@ -46,16 +46,18 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon --console=plain
+          ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon --console=plain
       - name: Configure and compile release without credentials
         run: |
           node scripts/android/prepare.mjs release
           cd android
-          ./gradlew :app:compileReleaseKotlin :app:processReleaseMainManifest --no-daemon --console=plain
+          ./gradlew :app:compileReleaseKotlin :app:processReleaseManifest --no-daemon --console=plain
           ./gradlew :app:bundleRelease --dry-run --no-daemon --console=plain > "$RUNNER_TEMP/release-task-graph.txt"
           grep -q ':app:verifyPhatbotReleaseSigning' "$RUNNER_TEMP/release-task-graph.txt"
           grep -q ':app:bundleRelease' "$RUNNER_TEMP/release-task-graph.txt"
           cat "$RUNNER_TEMP/release-task-graph.txt"
+      - name: Validate merged Health Connect manifest requirements
+        run: python3 scripts/android/validate-manifest.py debug release
       - name: Verify signing stage fails closed without credentials
         working-directory: android
         shell: bash

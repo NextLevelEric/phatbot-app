@@ -10,7 +10,7 @@ const fixture=()=>{
   fs.mkdirSync(path.join(root,'app/src/main/assets/public'),{recursive:true});
   fs.writeFileSync(path.join(root,'build.gradle'),"dependencies {\n        classpath 'com.android.tools.build:gradle:8.13.0'\n}\n");
   fs.writeFileSync(path.join(root,'app/build.gradle'),`apply plugin: 'com.android.application'\nandroid { namespace '${APP_ID}'\n defaultConfig { applicationId '${APP_ID}' } }\ndependencies {\n}\n`);
-  fs.writeFileSync(path.join(root,'app/src/main/AndroidManifest.xml'),'<manifest><application /></manifest>');
+  fs.writeFileSync(path.join(root,'app/src/main/AndroidManifest.xml'),'<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application></application></manifest>');
   fs.writeFileSync(path.join(root,'app/src/main/assets/public/index.html'),'fallback');
   fs.writeFileSync(path.join(root,'app/src/main/assets/capacitor.config.json'),JSON.stringify({appId:APP_ID,appName:'PHATBOT',webDir:'ios-shell',server:{url:'https://app.phatbotfit.com',cleartext:false,errorPath:'index.html'}}));
   return root;
@@ -29,17 +29,43 @@ test('production identity, secure URL and offline fallback are enforced',()=>{
     }
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
-test('native bridge and permissions match the unchanged debug workflow',()=>{
+test('debug and release use one persistent native bridge installer with six read permissions',()=>{
   const root=fixture();try{
     installBridge(root);
     const debug=fs.readFileSync('.github/workflows/build-android-apk.yml','utf8');
-    const expected=[...debug.matchAll(/android\.permission\.health\.READ_([A-Z_]+)/g)].map(m=>m[1]);
-    assert.deepEqual(HEALTH_PERMISSIONS,expected);
+    assert.deepEqual(HEALTH_PERMISSIONS,['STEPS','ACTIVE_CALORIES_BURNED','EXERCISE','DISTANCE','HEART_RATE','SLEEP']);
+    for(const workflow of [debug,fs.readFileSync('.github/workflows/build-android-release.yml','utf8')]) {
+      assert.ok(workflow.includes('node scripts/android/prepare.mjs bridge'));
+      assert.ok(workflow.includes('node scripts/android/prepare.mjs compatibility'));
+    }
     const gradle=fs.readFileSync(path.join(root,'app/build.gradle'),'utf8');
-    for(const dependency of ['androidx.health.connect:connect-client:1.1.0','org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2']){assert.ok(debug.includes(dependency));assert.ok(gradle.includes(dependency));}
-    assert.ok(debug.includes('kotlin-gradle-plugin:2.1.20'));
-    for(const name of ['MainActivity.java','HealthConnectPlugin.kt'])assert.equal(fs.readFileSync(path.join(root,'app/src/main/java',...APP_ID.split('.'),name),'utf8'),fs.readFileSync('android-native/'+name,'utf8'));
+    for(const dependency of ['androidx.health.connect:connect-client:1.1.0','org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'])assert.ok(gradle.includes(dependency));
+    assert.ok(fs.readFileSync(path.join(root,'build.gradle'),'utf8').includes('kotlin-gradle-plugin:2.1.20'));
+    for(const name of ['MainActivity.java','HealthConnectPlugin.kt','HealthConnectReadAccess.kt','HealthConnectPrivacyActivity.java','HealthConnectOnboardingActivity.java'])assert.equal(fs.readFileSync(path.join(root,'app/src/main/java',...APP_ID.split('.'),name),'utf8'),fs.readFileSync('android-native/'+name,'utf8'));
+    assert.equal(fs.readFileSync(path.join(root,'app/src/test/java',...APP_ID.split('.'),'HealthConnectReadAccessTest.kt'),'utf8'),fs.readFileSync('android-native/tests/HealthConnectReadAccessTest.kt','utf8'));
+    const manifest=fs.readFileSync(path.join(root,'app/src/main/AndroidManifest.xml'),'utf8');
+    assert.deepEqual([...manifest.matchAll(/android\.permission\.health\.READ_([A-Z_]+)/g)].map(match=>match[1]),HEALTH_PERMISSIONS);
+    assert.doesNotMatch(manifest,/WRITE_|READ_HEALTH_DATA_IN_BACKGROUND|READ_HEALTH_DATA_HISTORY/);
+    for(const required of ['com.google.android.apps.healthdata','androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE','android.intent.action.VIEW_PERMISSION_USAGE','android.intent.category.HEALTH_PERMISSIONS','android.permission.START_VIEW_PERMISSION_USAGE','androidx.health.ACTION_SHOW_ONBOARDING','android.health.connect.action.SHOW_ONBOARDING'])assert.ok(manifest.includes(required),required);
+    const native=fs.readFileSync('android-native/HealthConnectPlugin.kt','utf8');
+    assert.doesNotMatch(native,/RestingHeartRateRecord|HeartRateVariabilityRmssdRecord|WeightRecord|getWritePermission/);
+    assert.match(native,/@ActivityCallback private fun permissionsResult/);
+    assert.match(native,/startActivityForResult\(call,/);
+    assert.match(native,/Build.VERSION.SDK_INT < 28/);
+    assert.match(native,/coerceIn\(1, 14\)/);
+    assert.match(fs.readFileSync('android-native/HealthConnectPrivacyActivity.java','utf8'),/https:\/\/app\.phatbotfit\.com\/privacy/);
+    assert.match(fs.readFileSync('android-native/MainActivity.java','utf8'),/registerPlugin\(HealthConnectPlugin.class\)/);
     assert.throws(()=>installBridge(root)); // Template drift/repeated installation must not silently duplicate configuration.
+  }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+test('provider visibility is inserted into existing queries without replacing them',()=>{
+  const root=fixture();try{
+    const file=path.join(root,'app/src/main/AndroidManifest.xml');
+    fs.writeFileSync(file,fs.readFileSync(file,'utf8').replace('</manifest>','<queries><package android:name="existing.package" /></queries></manifest>'));
+    installBridge(root);
+    const manifest=fs.readFileSync(file,'utf8');
+    assert.equal((manifest.match(/<queries>/g)||[]).length,1);
+    assert.match(manifest,/<queries><package android:name="existing.package" \/><package android:name="com.google.android.apps.healthdata" \/>/);
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 test('release configuration writes version metadata and env references, never secret values',()=>{
