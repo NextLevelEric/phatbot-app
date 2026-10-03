@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { activityKind, activityLabel, activityMilestones, averageMotion, dashboardSummary, DAY_MS, distanceText, positive, type Activity } from '@/features/cardio/activityReport';
+import { activityKind, activityLabel, activityMilestones, averageMotion, dashboardSummary, DAY_MS, distanceText, positive, walkingProgress, type Activity } from '@/features/cardio/activityReport';
 import { formatEffortTime } from '@/features/cardio/comparableEfforts';
 import { ActivityMetric } from './CardioActivityReport';
 
@@ -20,6 +20,32 @@ export function CardioSnapshot({ activities, asOf }: { activities: Activity[]; a
       {summary.groups.length > 0 && <div className="mt-4 grid gap-3">{summary.groups.map(group => <div key={group.key} className="rounded-2xl border border-zinc-800 p-4"><div className="flex items-center justify-between gap-3"><h3 className="font-black">{group.label}</h3><p className="text-sm tabular-nums">{group.count} sessions · {formatEffortTime(group.seconds)}</p></div><p className="mt-2 text-sm text-zinc-400">{group.distanceCount ? `${distanceText(group.meters)} recorded distance · ` : ''}{group.previousCount ? `Previous 30 days: ${group.previousCount} sessions, ${formatEffortTime(group.previousSeconds)}` : 'No sessions recorded in the previous 30 days'}</p></div>)}</div>}
     </section>
   </>;
+}
+
+
+export function WalkingProgressCard({ activities, asOf }: { activities: Activity[]; asOf: number }) {
+  const progress = walkingProgress(activities, asOf);
+  if (!progress.latest) return null;
+  const latestPace = progress.latestPaceSecondsPerMile != null ? `${formatEffortTime(progress.latestPaceSecondsPerMile)}/mi` : '—';
+  const paceResult = progress.paceChangeSeconds == null
+    ? 'Complete another walk with distance and duration to measure pace progression.'
+    : Math.abs(progress.paceChangeSeconds) <= 1
+      ? 'You essentially matched your previous walking pace.'
+      : progress.paceChangeSeconds > 0
+        ? `${formatEffortTime(Math.abs(progress.paceChangeSeconds))}/mi faster than your previous walk.`
+        : `${formatEffortTime(Math.abs(progress.paceChangeSeconds))}/mi slower than your previous walk.`;
+  return <section className="rounded-3xl border border-[#ff0032]/30 bg-[#ff0032]/5 p-5">
+    <p className="text-[10px] font-black uppercase tracking-[.2em] text-[#ff0032]">Walking progression</p>
+    <div className="mt-2 flex items-start justify-between gap-4"><div><h2 className="text-2xl font-black">Your walks count.</h2><p className="mt-2 text-sm leading-6 text-zinc-300">{paceResult}</p></div><p className="shrink-0 text-2xl font-black tabular-nums">{latestPace}</p></div>
+    <div className="mt-5 grid grid-cols-2 gap-3">
+      <ActivityMetric label="Walks recorded" value={String(progress.walks.length)} />
+      <ActivityMetric label="Latest distance" value={positive(progress.latest.distance_meters) ? distanceText(progress.latest.distance_meters) : '—'} />
+      {progress.fastestPace && <ActivityMetric label="Best recorded pace" value={`${formatEffortTime(progress.fastestPace.duration_seconds / (Number(progress.fastestPace.distance_meters) / 1609.344))}/mi`} />}
+      {progress.longestDistance && <ActivityMetric label="Longest recorded walk" value={distanceText(progress.longestDistance.distance_meters!)} />}
+    </div>
+    <p className="mt-3 text-xs leading-5 text-zinc-500">Walking stays separate from running. Pace progression compares whole recorded walks; standardized 1-mile, 5K and 10K walk efforts remain available below when your device provides distance samples.</p>
+    <Link href={`/progress/activity/${progress.latest.id}`} className="mt-3 inline-block min-h-11 py-3 text-sm font-black underline">Open latest walk report →</Link>
+  </section>;
 }
 
 export function RecentCardioActivities({ activities, asOf }: { activities: Activity[]; asOf: number }) {
