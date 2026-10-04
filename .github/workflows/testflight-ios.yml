@@ -28,7 +28,9 @@ jobs:
           echo "Checked out commit: $(git rev-parse HEAD)"
           grep -q 'fetchDailyMetrics' ios/App/App/HealthKitManager.swift || { echo "Expected daily HealthKit metrics code is missing"; exit 1; }
           grep -q 'sourceWorkoutId' ios/App/App/HealthKitManager.swift || { echo "Expected enriched HealthKit workout code is missing"; exit 1; }
-          echo "Verified daily metrics and enriched workout payload source."
+          grep -q 'dietaryEnergyConsumed' ios/App/App/HealthKitManager.swift || { echo "Expected HealthKit nutrition read code is missing"; exit 1; }
+          grep -q 'originsByDay' ios/App/App/HealthKitManager.swift || { echo "Expected nutrition provenance code is missing"; exit 1; }
+          echo "Verified daily metrics, enriched workout payload, and nutrition source."
 
       - name: Verify Xcode and iOS SDK versions
         shell: bash

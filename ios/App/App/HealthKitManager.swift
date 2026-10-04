@@ -125,7 +125,7 @@ final class HealthKitManager {
 
     private func fetchNutritionDaily(start: Date, end: Date, completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
         let group = DispatchGroup(); let lock = NSLock(); var capturedError: Error?
-        var energy = NutritionSeries(values: [:], origins: []), protein = NutritionSeries(values: [:], origins: []), carbs = NutritionSeries(values: [:], origins: []), fat = NutritionSeries(values: [:], origins: [])
+        var energy = NutritionSeries(values: [:], originsByDay: [:]), protein = NutritionSeries(values: [:], originsByDay: [:]), carbs = NutritionSeries(values: [:], originsByDay: [:]), fat = NutritionSeries(values: [:], originsByDay: [:])
         func read(_ identifier: HKQuantityTypeIdentifier, unit: HKUnit, assign: @escaping (NutritionSeries) -> Void) {
             group.enter(); fetchNutritionSeries(identifier, unit: unit, start: start, end: end) { result in
                 lock.lock(); switch result { case .success(let series): assign(series); case .failure(let error): if capturedError == nil { capturedError = error } }; lock.unlock(); group.leave()
