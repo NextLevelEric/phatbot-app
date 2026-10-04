@@ -40,7 +40,15 @@ def validate(path):
     print(f"Validated Health Connect merged manifest: {path}")
 
 if __name__ == "__main__":
-    for variant in sys.argv[1:] or ["debug", "release"]:
+    arguments = sys.argv[1:]
+    if "--unit-tests" in arguments:
+        arguments.remove("--unit-tests")
+        report = pathlib.Path("android/app/build/test-results/testDebugUnitTest/TEST-com.nextleveldigitalmedia.phatbot.HealthConnectReadAccessTest.xml")
+        tests = ET.parse(report).getroot()
+        assert int(tests.get("tests")) == 4, "Missing native permission-isolation tests"
+        assert all(int(tests.get(key, "0")) == 0 for key in ["failures", "errors", "skipped"]), "Native tests failed or skipped"
+        print("HealthConnectReadAccessTest: 4 tests passed, 0 failed/skipped")
+    for variant in arguments or ["debug", "release"]:
         paths = list(pathlib.Path("android/app/build/intermediates/merged_manifests").glob(f"{variant}/**/AndroidManifest.xml"))
         assert paths, f"No merged {variant} manifest found"
         for path in paths:

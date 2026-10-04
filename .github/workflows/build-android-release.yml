@@ -51,13 +51,13 @@ jobs:
         run: |
           node scripts/android/prepare.mjs release
           cd android
-          ./gradlew :app:compileReleaseKotlin :app:processReleaseManifest --no-daemon --console=plain
+          ./gradlew :app:compileReleaseKotlin :app:compileReleaseJavaWithJavac :app:processReleaseManifest --no-daemon --console=plain
           ./gradlew :app:bundleRelease --dry-run --no-daemon --console=plain > "$RUNNER_TEMP/release-task-graph.txt"
           grep -q ':app:verifyPhatbotReleaseSigning' "$RUNNER_TEMP/release-task-graph.txt"
           grep -q ':app:bundleRelease' "$RUNNER_TEMP/release-task-graph.txt"
           cat "$RUNNER_TEMP/release-task-graph.txt"
       - name: Validate merged Health Connect manifest requirements
-        run: python3 scripts/android/validate-manifest.py debug release
+        run: python3 scripts/android/validate-manifest.py debug release --unit-tests
       - name: Verify signing stage fails closed without credentials
         working-directory: android
         shell: bash
