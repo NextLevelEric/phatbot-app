@@ -327,7 +327,7 @@ begin
     'next_targets', v_targets
   );
 end
-$;
+$$;
 
 
 revoke all on function phatbot_private.build_weekly_progress_report(uuid, timestamptz, timestamptz, timestamptz)
