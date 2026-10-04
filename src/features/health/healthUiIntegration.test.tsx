@@ -43,14 +43,14 @@ describe('manual health controls', () => {
     expect(harness.authorize.mock.invocationCallOrder[0]).toBeLessThan(harness.sync.mock.invocationCallOrder[0]);
     expect(JSON.stringify(render())).toContain('14 daily records, 2 workouts, and 1 cardio segments');
   });
-  it('Sync uses the same authority without another authorization request', async () => {
+  it('Sync refreshes Apple Health authorization before using the same authority', async () => {
     buttons()[1].props?.onClick?.(); await flush();
-    expect(harness.sync).toHaveBeenCalledExactlyOnceWith(14); expect(harness.authorize).not.toHaveBeenCalled();
+    expect(harness.authorize).toHaveBeenCalledOnce(); expect(harness.sync).toHaveBeenCalledExactlyOnceWith(14);
   });
   it('gives permission recovery without claiming import when authorization fails', async () => {
     harness.authorize.mockResolvedValue({ authorized: false });
     buttons()[0].props?.onClick?.(); await flush();
-    expect(harness.sync).not.toHaveBeenCalled(); expect(JSON.stringify(render())).toContain('Allow PHATBOT to read workouts');
+    expect(harness.sync).not.toHaveBeenCalled(); expect(JSON.stringify(render())).toContain('Allow PHATBOT to read the health categories');
   });
   it('displays empty results as a diagnostic', async () => {
     harness.sync.mockResolvedValue({status:'empty',syncedAt:null});
@@ -65,7 +65,7 @@ describe('manual health controls', () => {
   });
   it('blocks duplicate clicks before React rerenders', async () => {
     const controls=buttons(); controls[1].props?.onClick?.(); controls[0].props?.onClick?.(); await flush();
-    expect(harness.sync).toHaveBeenCalledOnce(); expect(harness.authorize).not.toHaveBeenCalled();
+    expect(harness.authorize).toHaveBeenCalledOnce(); expect(harness.sync).toHaveBeenCalledOnce();
   });
 });
 describe('health ingestion integration boundaries', () => {
