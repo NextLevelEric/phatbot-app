@@ -89,7 +89,12 @@ export function weeklyAnswer(payload: WeeklyReportPayload) {
   if (payload.progressive_overload.status === "incomplete") concerns.push("Strength progression scoring is incomplete, so PHATBOT will not guess at your result.");
   if (payload.sleep?.status === "partial") concerns.push(`Sleep context is partial (${payload.sleep.recorded_nights} nights recorded).`);
   if (payload.sleep?.status === "unavailable") concerns.push("Sleep context is unavailable for this week.");
-  if (payload.bodyweight) concerns.push(`Body weight moved ${signedValue(payload.bodyweight.change)} ${payload.bodyweight.unit} across recorded measurements. Weight change is context, not a score.`);\n  if (payload.nutrition) {\n    if (payload.nutrition.recorded_days < 4) concerns.push(`Nutrition baseline is still building (${payload.nutrition.recorded_days} days recorded).`);\n    else if (payload.nutrition.consistency === "very_consistent" || payload.nutrition.consistency === "consistent") wins.push(`Nutrition was ${payload.nutrition.consistency === "very_consistent" ? "very consistent" : "consistent"} across ${payload.nutrition.recorded_days} recorded days.`);\n    else concerns.push("Nutrition was more variable this week. PHATBOT treats that as context—not a failed day or a reason to restrict harder.");\n  }
+  if (payload.bodyweight) concerns.push(`Body weight moved ${signedValue(payload.bodyweight.change)} ${payload.bodyweight.unit} across recorded measurements. Weight change is context, not a score.`);
+  if (payload.nutrition) {
+    if (payload.nutrition.recorded_days < 4) concerns.push(`Nutrition baseline is still building (${payload.nutrition.recorded_days} days recorded).`);
+    else if (payload.nutrition.consistency === "very_consistent" || payload.nutrition.consistency === "consistent") wins.push(`Nutrition was ${payload.nutrition.consistency === "very_consistent" ? "very consistent" : "consistent"} across ${payload.nutrition.recorded_days} recorded days.`);
+    else concerns.push("Nutrition was more variable this week. PHATBOT treats that as context—not a failed day or a reason to restrict harder.");
+  }
   if (payload.next_targets[0]) actions.push(`${payload.next_targets[0].label}: ${payload.next_targets[0].target}`);
   else if (payload.workouts.completed === 0) actions.push("Complete your next training session to establish a fresh comparison.");
   else actions.push("Repeat comparable training next week so PHATBOT can measure the trend.");
