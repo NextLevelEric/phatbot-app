@@ -14,22 +14,22 @@ export default function AndroidHealthConnectionCard() {
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [latestWorkoutId, setLatestWorkoutId] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const statusRevision = useRef(0);
 
   useEffect(() => {
     let active = true;
-    let revision = 0;
     async function refresh() {
       if (inFlight.current) return;
-      const request = ++revision;
+      const request = ++statusRevision.current;
       try {
         const next = await getHealthConnectStatus();
-        if (active && request === revision && !inFlight.current) { setStatus(next); setMessage(""); }
+        if (active && request === statusRevision.current && !inFlight.current) { setStatus(next); setMessage(""); }
       } catch {
-        if (active && request === revision && !inFlight.current) {
+        if (active && request === statusRevision.current && !inFlight.current) {
           setStatus(null);
           setMessage("Health Connect status could not load. Try again. If you have an older PHATBOT Android build, install the current build to use these controls. Saved history is safe.");
         }
-      } finally { if (active && request === revision) setChecking(false); }
+      } finally { if (active && request === statusRevision.current) setChecking(false); }
     }
     void refresh();
     async function loadHistory() {
@@ -55,6 +55,7 @@ export default function AndroidHealthConnectionCard() {
   async function perform(action: 'connect' | 'sync' | 'settings' | 'refresh') {
     if (inFlight.current) return;
     inFlight.current = true;
+    statusRevision.current += 1;
     setBusy(true);
     setMessage("");
     try {

@@ -1,6 +1,6 @@
 # Android Health Connect and Google Play readiness
 
-Audit date: October 3, 2026. Based on main `b4f7b9b` and the unchanged signing pipeline from PR #37 (`codex/android-play-release`, `de9fe4f`). PR #37 was not merged into main when inspected, so this branch includes it as an explicit dependency. Review its signing setup separately; this work neither merges it nor makes signing-ownership decisions.
+Audit dates: October 3–4, 2026. Refreshed on main `00d0652`, preserving its nutrition/reporting changes, and the unchanged signing pipeline from PR #37 (`codex/android-play-release`, `de9fe4f`). PR #37 was not merged into main when inspected, so this branch includes it as an explicit dependency. Review its signing setup separately; this work neither merges it nor makes signing-ownership decisions. The shared snapshot's nutrition type added by main does not add Android nutrition reads or permissions.
 
 ## Implementation and supported versions
 
