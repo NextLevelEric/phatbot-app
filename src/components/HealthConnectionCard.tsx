@@ -51,11 +51,15 @@ export default function HealthConnectionCard() {
     setMessage("");
     setState(authorize ? "checking" : "syncing");
     try {
-      if (authorize) {
+      if (authorize || provider === "apple_health") {
+        // Re-requesting HealthKit authorization is safe and is required when
+        // PHATBOT adds a new read category (such as nutrition) after an athlete
+        // already connected Apple Health. iOS only presents newly requested
+        // categories; previously granted reads remain unchanged.
         const access = await requestNativeHealthAccess();
         if (!access.authorized) {
           setState("disconnected");
-          setMessage(`Allow PHATBOT to read workouts, steps, and distance in ${name}, then return and tap Sync Health Data.`);
+          setMessage(`Allow PHATBOT to read the health categories you want to use in ${name}, then return and tap Sync Health Data.`);
           return;
         }
       }
@@ -73,7 +77,7 @@ export default function HealthConnectionCard() {
 
   if (state === "unavailable") return null;
   return <section className="flex flex-col gap-4 rounded-2xl border border-zinc-800 p-5">
-    <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-500">Health & Wearables</p><h2 className="mt-1 text-xl font-semibold">{name}</h2><p className="mt-1 text-sm text-zinc-400">Bring steps, cardio, heart rate, sleep, and calories into PHATBOT.</p></div><span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${state === "connected" ? "bg-emerald-400" : state === "error" ? "bg-amber-400" : "bg-zinc-600"}`} /></div>
+    <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-500">Health & Wearables</p><h2 className="mt-1 text-xl font-semibold">{name}</h2><p className="mt-1 text-sm text-zinc-400">Bring steps, cardio, heart rate, sleep, and nutrition into PHATBOT.</p></div><span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${state === "connected" ? "bg-emerald-400" : state === "error" ? "bg-amber-400" : "bg-zinc-600"}`} /></div>
     {lastSynced && <p className="text-xs text-zinc-500">Last recorded sync {new Date(lastSynced).toLocaleString()}</p>}
     <div className="grid gap-2 sm:grid-cols-2">{state === "disconnected" || state === "error" ? <button type="button" onClick={() => void sync(true)} className="phat-accent-bg rounded-lg px-4 py-3 font-semibold">Connect {name}</button> : null}<button type="button" disabled={state === "checking" || state === "syncing"} onClick={() => void sync()} className="rounded-lg border border-zinc-700 px-4 py-3 font-semibold disabled:opacity-50">{state === "syncing" ? "Syncing..." : "Sync Health Data"}</button></div>
     {message && <p className="phat-signal rounded-lg border p-3 text-sm text-zinc-200">{message}</p>}
