@@ -2,19 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import TrainTogetherCompetitionBoard, { type TrainTogetherStanding } from "@/components/TrainTogetherCompetitionBoard";
 
 type Room = { id: string; room_name: string; join_code: string; status: string };
-type BeastRow = {
-  athlete_user_id: string;
-  athlete_name: string;
-  workout_session_id: string | null;
-  session_status: string | null;
-  score: number | null;
-  result_label: string;
-  comparable_exercises: number;
-  rank: number | null;
-};
-
 const PUBLIC_APP_ORIGIN = "https://app.phatbotfit.com";
 
 export default function TrainTogetherCard({
@@ -32,21 +22,24 @@ export default function TrainTogetherCard({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [memberCount, setMemberCount] = useState(1);
-  const [beast, setBeast] = useState<BeastRow[]>([]);
+  const [beast, setBeast] = useState<TrainTogetherStanding[]>([]);
+  const [eager, setEager] = useState<TrainTogetherStanding[]>([]);
   const [me, setMe] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
 
   async function refresh(r: Room) {
     const s = createSupabaseBrowserClient();
-    const [{ count }, { data }] = await Promise.all([
+    const [{ count }, beastResult, eagerResult] = await Promise.all([
       (s as any)
         .from("live_workout_room_members")
         .select("id", { count: "exact", head: true })
         .eq("room_id", r.id),
-      (s as any).rpc("get_live_workout_room_beast", { p_room_id: r.id }),
+      (s as any).rpc("get_live_workout_room_standings", { p_room_id: r.id, p_competition: "beast" }),
+      (s as any).rpc("get_live_workout_room_standings", { p_room_id: r.id, p_competition: "eager_beaver" }),
     ]);
     setMemberCount(count ?? 1);
-    setBeast((data ?? []) as BeastRow[]);
+    setBeast((beastResult.data ?? []) as TrainTogetherStanding[]);
+    setEager((eagerResult.data ?? []) as TrainTogetherStanding[]);
   }
 
   useEffect(() => {
@@ -208,43 +201,11 @@ export default function TrainTogetherCard({
             </div>
           )}
 
-          <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-400/5 p-4">
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[.2em] text-amber-400">LIVE BEAST RACE</p>
-                <h3 className="mt-1 text-base font-black">Who is beating themselves hardest?</h3>
-              </div>
-              <span className="text-[10px] font-bold uppercase text-zinc-500">refreshes live</span>
-            </div>
-
-            <div className="mt-3 space-y-2">
-              {beast.length === 0 ? (
-                <p className="rounded-xl border border-zinc-800 p-3 text-xs text-zinc-500">Log some working sets. PHATBOT is waiting for evidence.</p>
-              ) : (
-                beast.map((r) => {
-                  const hasScore = r.score !== null && r.comparable_exercises > 0;
-                  return (
-                    <div key={r.athlete_user_id} className={`flex items-center gap-3 rounded-xl border px-3 py-3 ${r.athlete_user_id === me ? "border-[#ff0032]/40 bg-[#ff0032]/5" : "border-zinc-800/80 bg-black/10"}`}>
-                      <div className="w-7 text-center text-sm font-black">{hasScore && r.rank ? `#${r.rank}` : "—"}</div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-black">{r.athlete_user_id === me ? "YOU" : r.athlete_name}</p>
-                        <p className="text-[10px] uppercase tracking-wide text-zinc-500">
-                          {r.comparable_exercises > 0 ? `${r.comparable_exercises} comparable lift${r.comparable_exercises === 1 ? "" : "s"}` : "building baseline"}
-                          {r.session_status === "completed" ? " · finished" : " · training"}
-                        </p>
-                      </div>
-                      <div className={`text-right text-sm font-black ${hasScore ? "text-amber-400" : "text-zinc-500"}`}>
-                        {hasScore ? r.result_label : "BUILDING SCORE"}
-                        {hasScore && r.session_status !== "completed" && <div className="mt-0.5 text-[9px] uppercase tracking-wide text-zinc-600">provisional</div>}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <p className="mt-3 text-[10px] leading-relaxed text-zinc-500">
-              Rankings update as sets are logged. Live numbers are provisional until everyone finishes. Room Beast never changes the official Daily Beast.
+          <div className="mt-4 grid gap-3">
+            <TrainTogetherCompetitionBoard competition="beast" rows={beast} me={me} live />
+            <TrainTogetherCompetitionBoard competition="eager_beaver" rows={eager} me={me} live />
+            <p className="text-[10px] leading-relaxed text-zinc-500">
+              Room rankings are social-only. They never change the official PHATBOT Daily Beast, Eager Beaver, or Trophy Cabinet.
             </p>
           </div>
         </>
