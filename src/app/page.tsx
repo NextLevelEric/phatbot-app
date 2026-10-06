@@ -113,7 +113,6 @@ export default function HomePage() {
         if (!mounted || signal.aborted) return;
 
         setProfile(profileResult.data);
-        setWorkoutTemplates((templatesResult.data ?? []) as WorkoutTemplate[]);
         setLatestWorkout(latestResult.data as WorkoutSession | null);
         setActiveWorkout(activeResult.data as ActiveWorkout | null);
         setLatestCoachFeedback(feedback);
