@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
-type SharedExercise = { exercise_id: string; name: string; position: number; prescribed_set_targets: string[]; target_rounds: number | null; target_duration_seconds_min: number | null; target_duration_seconds_max: number | null; target_distance: number | null; target_distance_unit: string | null };\ntype SharedWorkout = { workout_session_id: string; athlete_user_id: string; athlete_name: string; workout_name: string; completed_at: string; exercises: SharedExercise[] };\ntype RecentWorkout = { session_id: string; name: string; completed_at: string; po_wins: number; opportunities: number };
+type SharedExercise = { exercise_id: string; name: string; position: number; prescribed_set_targets: string[]; target_rounds: number | null; target_duration_seconds_min: number | null; target_duration_seconds_max: number | null; target_distance: number | null; target_distance_unit: string | null };
+type SharedWorkout = { workout_session_id: string; athlete_user_id: string; athlete_name: string; workout_name: string; completed_at: string; exercises: SharedExercise[] };
+type RecentWorkout = { session_id: string; name: string; completed_at: string; po_wins: number; opportunities: number };
 type AthleteProfile = {
   athlete_user_id: string;
   display_name: string;
@@ -34,7 +36,11 @@ export default function AthleteProfilePage() {
   const athleteId = params.athleteId;
   const [profile, setProfile] = useState<AthleteProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [privateProfile, setPrivateProfile] = useState(false);\n  const [preview, setPreview] = useState<SharedWorkout | null>(null);\n  const [previewing, setPreviewing] = useState(false);\n  const [copying, setCopying] = useState(false);\n  const [message, setMessage] = useState("");
+  const [privateProfile, setPrivateProfile] = useState(false);
+  const [preview, setPreview] = useState<SharedWorkout | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     let active = true;
