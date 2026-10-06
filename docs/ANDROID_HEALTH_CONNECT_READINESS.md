@@ -1,6 +1,6 @@
 # Android Health Connect and Google Play readiness
 
-Audit dates: October 3–4, 2026. Refreshed on main `00d0652`, preserving its nutrition/reporting changes, and the unchanged signing pipeline from PR #37 (`codex/android-play-release`, `de9fe4f`). PR #37 was not merged into main when inspected, so this branch includes it as an explicit dependency. Review its signing setup separately; this work neither merges it nor makes signing-ownership decisions. The shared snapshot's nutrition type added by main does not add Android nutrition reads or permissions.
+Initial audit: October 3–4, 2026. Dependency refresh: October 7, 2026. PR #37 is now merged into main at `b708948e541f2406c4402e5408386703c08c2f17`. PR #60's three implementation commits were rebased without conflicts onto current main `a599b1fa2ffa4f1ec3fffde943eb40aa34e9c460`, including its subsequent Apple Health UI cleanup, Home highlights, CI corrections and athlete/group features; the release pipeline is inherited from main rather than included as an unmerged dependency. Signing scripts and security protections remain unchanged. Current-main iOS, nutrition, reporting and backend behavior is preserved. The shared snapshot's nutrition type does not add Android nutrition reads or permissions. This refresh adds no features and makes no signing-ownership decisions.
 
 ## Implementation and supported versions
 
