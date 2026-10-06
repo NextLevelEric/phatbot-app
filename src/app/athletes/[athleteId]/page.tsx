@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
-type RecentWorkout = { name: string; completed_at: string; po_wins: number; opportunities: number };
+type SharedExercise = { exercise_id: string; name: string; position: number; prescribed_set_targets: string[]; target_rounds: number | null; target_duration_seconds_min: number | null; target_duration_seconds_max: number | null; target_distance: number | null; target_distance_unit: string | null };
+type SharedWorkout = { workout_session_id: string; athlete_user_id: string; athlete_name: string; workout_name: string; completed_at: string; exercises: SharedExercise[] };
+type RecentWorkout = { session_id: string; name: string; completed_at: string; po_wins: number; opportunities: number };
 type AthleteProfile = {
   athlete_user_id: string;
   display_name: string;
@@ -35,6 +37,10 @@ export default function AthleteProfilePage() {
   const [profile, setProfile] = useState<AthleteProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [privateProfile, setPrivateProfile] = useState(false);
+  const [preview, setPreview] = useState<SharedWorkout | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -51,6 +57,24 @@ export default function AthleteProfilePage() {
     })();
     return () => { active = false; };
   }, [athleteId]);
+
+  async function openWorkout(sessionId: string) {
+    setPreviewing(true); setMessage("");
+    const s = createSupabaseBrowserClient();
+    const { data, error } = await s.rpc("athlete_shared_workout", { p_workout_session_id: sessionId });
+    const row = ((data ?? [])[0] ?? null) as SharedWorkout | null;
+    if (error || !row) setMessage("That workout is not available to share."); else setPreview(row);
+    setPreviewing(false);
+  }
+
+  async function copyWorkout() {
+    if (!preview) return;
+    setCopying(true); setMessage("");
+    const s = createSupabaseBrowserClient();
+    const { data, error } = await s.rpc("copy_athlete_workout", { p_workout_session_id: preview.workout_session_id });
+    if (error || !data) { setMessage(error?.message ?? "Unable to copy workout."); setCopying(false); return; }
+    window.location.href = `/workouts/${data}`;
+  }
 
   if (loading) return <main className="mx-auto min-h-screen max-w-2xl px-5 py-10 text-zinc-500">Opening athlete profile...</main>;
 
@@ -83,9 +107,11 @@ export default function AthleteProfilePage() {
 
     <section className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
       <div className="flex items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.18em] text-zinc-500">Recent Training</p><h2 className="mt-1 text-2xl font-black">How they train.</h2></div><p className="text-sm font-black text-[#ff0032]">{profile.po_wins_last_30_days} PO wins · 30d</p></div>
-      {profile.recent_workouts.length === 0 ? <p className="mt-4 text-sm text-zinc-500">No completed training to show yet.</p> : <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800">{profile.recent_workouts.map((workout, index) => <div key={`${workout.completed_at}-${index}`} className="flex items-center justify-between gap-4 border-b border-zinc-900 px-4 py-4 last:border-0"><div><p className="font-black">{workout.name}</p><p className="mt-1 text-xs text-zinc-600">{dateLabel(workout.completed_at)}</p></div><p className="text-xs font-black text-zinc-400">{workout.opportunities > 0 ? `${workout.po_wins}/${workout.opportunities} PO` : "Baseline"}</p></div>)}</div>}
-      <div className="mt-4 rounded-2xl border border-dashed border-zinc-700 p-4"><p className="font-black">Train like {profile.display_name}</p><p className="mt-1 text-sm text-zinc-500">Workout copying is the next piece. This profile is already structured to become the launch point.</p></div>
+      {profile.recent_workouts.length === 0 ? <p className="mt-4 text-sm text-zinc-500">No completed training to show yet.</p> : <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800">{profile.recent_workouts.map((workout, index) => <button type="button" disabled={previewing} onClick={() => void openWorkout(workout.session_id)} key={`${workout.completed_at}-${index}`} className="flex w-full items-center justify-between gap-4 border-b border-zinc-900 px-4 py-4 text-left last:border-0 hover:bg-zinc-900/60"><div><p className="font-black">{workout.name}</p><p className="mt-1 text-xs text-zinc-600">{dateLabel(workout.completed_at)} · {workout.opportunities > 0 ? `${workout.po_wins}/${workout.opportunities} PO` : "Baseline"}</p></div><span className="text-zinc-600">→</span></button>)}</div>}
+      {message && <p className="mt-4 text-sm text-red-300">{message}</p>}
     </section>
+
+    {preview && <section className="rounded-3xl border border-[#ff0032]/35 bg-black p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.18em] text-[#ff0032]">Workout Preview</p><h2 className="mt-1 text-2xl font-black">{preview.workout_name}</h2><p className="mt-1 text-sm text-zinc-500">From {preview.athlete_name} · {preview.exercises.length} exercises</p></div><button type="button" onClick={() => setPreview(null)} className="rounded-full border border-zinc-700 px-3 py-1 text-zinc-400">×</button></div><div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800">{preview.exercises.map(exercise => <div key={`${exercise.position}-${exercise.exercise_id}`} className="grid grid-cols-[32px_1fr_auto] items-center gap-3 border-b border-zinc-900 px-4 py-3 last:border-0"><p className="text-xs font-black text-zinc-700">{exercise.position}</p><p className="font-black">{exercise.name}</p><p className="max-w-32 text-right text-xs font-bold text-zinc-500">{exercise.prescribed_set_targets?.length ? exercise.prescribed_set_targets.join(" · ") : exercise.target_rounds ? `${exercise.target_rounds} rounds` : exercise.target_distance ? `${exercise.target_distance} ${exercise.target_distance_unit ?? ""}` : exercise.target_duration_seconds_min ? `${Math.round(exercise.target_duration_seconds_min / 60)} min` : "Open target"}</p></div>)}</div><p className="mt-4 text-xs leading-5 text-zinc-600">Copies the workout structure and targets only. Their weights, reps performed, notes, and history stay private.</p><button type="button" disabled={copying} onClick={() => void copyWorkout()} className="mt-4 w-full rounded-2xl bg-white px-5 py-4 font-black text-black disabled:opacity-50">{copying ? "COPYING..." : "COPY TO MY WORKOUTS"}</button></section>}
 
     <div className="grid grid-cols-2 gap-3"><Link href="/compete" className="rounded-2xl border border-zinc-800 px-4 py-4 text-center text-sm font-black">← Compete</Link><Link href="/groups" className="rounded-2xl border border-zinc-800 px-4 py-4 text-center text-sm font-black">Groups</Link></div>
   </main>;
