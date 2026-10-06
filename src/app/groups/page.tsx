@@ -13,6 +13,7 @@ type Row = { rank: number; athlete_user_id: string; display_name: string; score:
 
 const competitions: Competition[] = ["beast", "eager_beaver", "step_king"];
 const labels: Record<Competition, string> = { beast: "Beast", eager_beaver: "Eager Beaver", step_king: "Step King" };
+const PUBLIC_APP_ORIGIN = "https://app.phatbotfit.com";
 
 function formatScore(kind: Competition, row: Row) {
   if (row.result_label) return row.result_label;
@@ -33,6 +34,7 @@ export default function GroupsPage() {
   const [joinCode, setJoinCode] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [shareOpen, setShareOpen] = useState(false);
 
   async function loadGroups(preferred?: string) {
     const s = createSupabaseBrowserClient();
@@ -63,7 +65,8 @@ export default function GroupsPage() {
         if (!latest.has(key)) latest.set(key, p);
       }
       setPeriods([...latest.values()]);
-      await loadGroups();
+      const requestedGroup = new URLSearchParams(window.location.search).get("group") ?? undefined;
+      await loadGroups(requestedGroup);
       setLoading(false);
     }
     void load();
@@ -72,6 +75,8 @@ export default function GroupsPage() {
   const activeGroup = groups.find(g => g.id === selected) ?? null;
   const memberCount = useMemo(() => members.filter(m => m.group_id === selected).length, [members, selected]);
   const period = periods.find(p => p.competition === competition && p.cadence === cadence) ?? null;
+  const shareUrl = activeGroup ? `${PUBLIC_APP_ORIGIN}/groups/join/${activeGroup.join_code}` : "";
+  const qrUrl = shareUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=16&data=${encodeURIComponent(shareUrl)}` : "";
 
   useEffect(() => {
     async function loadBoard() {
@@ -93,6 +98,31 @@ export default function GroupsPage() {
     setNewName("");
     await loadGroups(data as string);
     setMessage("Group created. Share the join code with your crew.");
+  }
+
+  async function shareGroup() {
+    if (!activeGroup || !shareUrl) return;
+    const shareData = {
+      title: `Join ${activeGroup.name} on PHATBOT`,
+      text: `Join my ${activeGroup.name} group on PHATBOT. Code: ${activeGroup.join_code}`,
+      url: shareUrl,
+    };
+    if (navigator.share) {
+      try { await navigator.share(shareData); return; }
+      catch (error) { if ((error as Error).name === "AbortError") return; }
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setMessage("Group invite link copied.");
+    } catch {
+      setMessage("PHATBOT couldn't open sharing. Use the join code or QR code instead.");
+    }
+  }
+
+  async function copyInvite() {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setMessage("Group invite link copied.");
   }
 
   async function joinGroup() {
@@ -141,8 +171,23 @@ export default function GroupsPage() {
       {activeGroup && <section className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
         <div className="flex items-start justify-between gap-4">
           <div><p className="text-xs font-black uppercase tracking-[.18em] text-[#ff0032]">Group Arena</p><h2 className="mt-1 text-3xl font-black">{activeGroup.name}</h2><p className="mt-1 text-xs text-zinc-600">{memberCount} member{memberCount === 1 ? "" : "s"}</p></div>
-          <div className="rounded-xl border border-zinc-700 bg-black px-3 py-2 text-center"><p className="text-[9px] font-black uppercase tracking-wide text-zinc-600">Join code</p><p className="mt-1 font-black tracking-[.15em]">{activeGroup.join_code}</p></div>
+          <button type="button" onClick={() => setShareOpen(true)} className="rounded-xl border border-[#ff0032]/40 bg-black px-3 py-2 text-center transition hover:border-[#ff0032]"><p className="text-[9px] font-black uppercase tracking-wide text-[#ff0032]">Share Group</p><p className="mt-1 font-black tracking-[.15em]">{activeGroup.join_code}</p></button>
         </div>
+
+        {shareOpen && <div className="mt-5 rounded-2xl border border-[#ff0032]/30 bg-black p-5 text-center">
+          <div className="flex items-start justify-between gap-4 text-left">
+            <div><p className="text-xs font-black uppercase tracking-[.18em] text-[#ff0032]">Invite your crew</p><p className="mt-1 text-sm text-zinc-400">Send the link or let someone scan the QR code. The join code still works too.</p></div>
+            <button type="button" onClick={() => setShareOpen(false)} className="text-xl font-black text-zinc-500" aria-label="Close group sharing">×</button>
+          </div>
+          {qrUrl && <div className="mx-auto mt-5 flex w-fit items-center justify-center rounded-2xl bg-white p-4 shadow-xl"><img src={qrUrl} alt={`QR code to join ${activeGroup.name}`} className="block h-44 w-44 object-contain" /></div>}
+          <p className="mt-4 text-[10px] font-black uppercase tracking-[.18em] text-zinc-500">Join code</p>
+          <p className="mt-2 font-mono text-2xl font-black tracking-[.18em]">{activeGroup.join_code}</p>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => void shareGroup()} className="rounded-xl bg-[#ff0032] px-4 py-3 text-xs font-black text-white">SHARE INVITE</button>
+            <button type="button" onClick={() => void copyInvite()} className="rounded-xl border border-zinc-700 px-4 py-3 text-xs font-black">COPY LINK</button>
+          </div>
+          <p className="mt-3 break-all text-[10px] text-zinc-600">{shareUrl}</p>
+        </div>}
 
         <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-zinc-800 p-2">
           {(["daily","weekly"] as Cadence[]).map(c => <button key={c} type="button" onClick={() => setCadence(c)} className={`rounded-xl py-3 text-sm font-black capitalize ${cadence === c ? "bg-white text-black" : "text-zinc-500"}`}>{c === "daily" ? "Today" : "This Week"}</button>)}
