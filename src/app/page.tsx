@@ -7,6 +7,7 @@ import { RebuildDashboardStatus } from "@/components/RebuildDashboardStatus";
 import BodyweightQuickLog from "@/components/BodyweightQuickLog";
 import AthleteProgramHomeCard from "@/components/AthleteProgramHomeCard";
 import WeeklyReportReadyCard from "@/components/WeeklyReportReadyCard";
+import PhatbotHighlights from "@/components/PhatbotHighlights";
 import { startStartupAttempt, StartupTimeoutError } from "@/features/auth/startupAttempt";
 
 type Profile = { display_name: string | null };
