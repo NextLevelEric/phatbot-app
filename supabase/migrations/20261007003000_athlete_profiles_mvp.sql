@@ -66,6 +66,7 @@ as $$
   ),
   recent as (
     select coalesce(jsonb_agg(jsonb_build_object(
+      'session_id', session_id,
       'name', workout_name_snapshot,
       'completed_at', completed_at,
       'po_wins', progression_count,
@@ -73,6 +74,7 @@ as $$
     ) order by completed_at desc), '[]'::jsonb) as recent_workouts
     from (
       select
+        ws.id as session_id,
         ws.workout_name_snapshot,
         ws.completed_at,
         coalesce(sc.progression_count,0) as progression_count,
