@@ -7,10 +7,10 @@ import { RebuildDashboardStatus } from "@/components/RebuildDashboardStatus";
 import BodyweightQuickLog from "@/components/BodyweightQuickLog";
 import AthleteProgramHomeCard from "@/components/AthleteProgramHomeCard";
 import WeeklyReportReadyCard from "@/components/WeeklyReportReadyCard";
+import PhatbotHighlights from "@/components/PhatbotHighlights";
 import { startStartupAttempt, StartupTimeoutError } from "@/features/auth/startupAttempt";
 
 type Profile = { display_name: string | null };
-type WorkoutTemplate = { id: string; name: string; description: string | null; created_at: string; sort_order: number | null };
 type WorkoutSession = { id: string; workout_id: string; workout_name_snapshot: string; completed_at: string };
 type ActiveWorkout = { id: string; workout_name_snapshot: string; started_at: string };
 type CoachFeedback = { workout_session_id: string; feedback: string; updated_at: string; workout_name: string | null };
@@ -41,7 +41,6 @@ export default function HomePage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [workoutTemplates, setWorkoutTemplates] = useState<WorkoutTemplate[]>([]);
   const [latestWorkout, setLatestWorkout] = useState<WorkoutSession | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const [latestCoachFeedback, setLatestCoachFeedback] = useState<CoachFeedback | null>(null);
@@ -84,9 +83,8 @@ export default function HomePage() {
         setSignedIn(true);
         setUserId(user.id);
 
-        const [profileResult, templatesResult, latestResult, activeResult, feedbackResult, plateauResult, readsResult] = await Promise.all([
+        const [profileResult, latestResult, activeResult, feedbackResult, plateauResult, readsResult] = await Promise.all([
           supabase.from("profiles").select("display_name").abortSignal(signal).eq("id", user.id).single(),
-          supabase.from("workouts").select("id,name,description,created_at,sort_order").abortSignal(signal).eq("athlete_user_id", user.id).eq("is_active", true).order("sort_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true }),
           supabase.from("workout_sessions").select("id,workout_id,workout_name_snapshot,completed_at").abortSignal(signal).eq("athlete_user_id", user.id).eq("status", "completed").order("completed_at", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("workout_sessions").select("id,workout_name_snapshot,started_at").abortSignal(signal).eq("athlete_user_id", user.id).eq("status", "in_progress").order("started_at", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("coach_workout_feedback").select("workout_session_id,feedback,updated_at").abortSignal(signal).eq("athlete_user_id", user.id).is("athlete_read_at", null).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
@@ -96,7 +94,7 @@ export default function HomePage() {
 
         if (!mounted || signal.aborted) return;
 
-        const criticalError = templatesResult.error || latestResult.error || activeResult.error;
+        const criticalError = latestResult.error || activeResult.error;
         if (criticalError) throw criticalError;
         // Optional cards must not block Home, but failures remain diagnosable.
         if (profileResult.error || feedbackResult.error || plateauResult.error || readsResult.error) {
@@ -113,7 +111,6 @@ export default function HomePage() {
         if (!mounted || signal.aborted) return;
 
         setProfile(profileResult.data);
-        setWorkoutTemplates((templatesResult.data ?? []) as WorkoutTemplate[]);
         setLatestWorkout(latestResult.data as WorkoutSession | null);
         setActiveWorkout(activeResult.data as ActiveWorkout | null);
         setLatestCoachFeedback(feedback);
@@ -197,7 +194,6 @@ export default function HomePage() {
   if (!signedIn) return null;
 
   const firstName = profile?.display_name?.trim().split(/\s+/)[0] ?? null;
-  const visibleTemplates = workoutTemplates.slice(0, 2);
   const hasAttention = Boolean(latestCoachFeedback || plateauSignals.length > 0);
 
   return (
@@ -282,37 +278,12 @@ export default function HomePage() {
         <section>
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">Last workout</p>
+              <p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">Latest completed workout</p>
               <h2 className="mt-1 text-xl font-black">{latestWorkout.workout_name_snapshot}</h2>
             </div>
-            <Link href={`/sessions/${latestWorkout.id}/report`} className="text-sm font-black text-zinc-300">Report →</Link>
+            <Link href={`/sessions/${latestWorkout.id}/report`} className="text-sm font-black text-zinc-300">View results →</Link>
           </div>
           <p className="mt-2 text-xs text-zinc-500">Completed {new Date(latestWorkout.completed_at).toLocaleString()}</p>
-        </section>
-      )}
-
-      {!activeWorkout && workoutTemplates.length > 0 && (
-        <section className="flex flex-col gap-3">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-500">Quick start</p>
-              <h2 className="mt-1 text-xl font-black">Your workouts</h2>
-            </div>
-            <Link href="/workouts" className="text-sm font-black text-zinc-300">View all →</Link>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {visibleTemplates.map((workout) => {
-              const description = athleteFacingDescription(workout.description);
-              return (
-                <Link key={workout.id} href={`/workouts/${workout.id}`} className="rounded-2xl border border-zinc-800 p-5 transition active:bg-zinc-900">
-                  <h3 className="text-lg font-black">{workout.name}</h3>
-                  {description && <p className="mt-2 line-clamp-2 text-sm text-zinc-500">{description}</p>}
-                  <p className="mt-4 text-sm font-black text-[#ff0032]">Open →</p>
-                </Link>
-              );
-            })}
-          </div>
         </section>
       )}
 
