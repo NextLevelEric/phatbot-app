@@ -87,7 +87,6 @@ export default function HomePage() {
 
         const [profileResult, latestResult, activeResult, feedbackResult, plateauResult, readsResult] = await Promise.all([
           supabase.from("profiles").select("display_name").abortSignal(signal).eq("id", user.id).single(),
-          supabase.from("workouts").select("id,name,description,created_at,sort_order").abortSignal(signal).eq("athlete_user_id", user.id).eq("is_active", true).order("sort_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true }),
           supabase.from("workout_sessions").select("id,workout_id,workout_name_snapshot,completed_at").abortSignal(signal).eq("athlete_user_id", user.id).eq("status", "completed").order("completed_at", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("workout_sessions").select("id,workout_name_snapshot,started_at").abortSignal(signal).eq("athlete_user_id", user.id).eq("status", "in_progress").order("started_at", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("coach_workout_feedback").select("workout_session_id,feedback,updated_at").abortSignal(signal).eq("athlete_user_id", user.id).is("athlete_read_at", null).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
