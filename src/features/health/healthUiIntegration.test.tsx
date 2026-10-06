@@ -74,7 +74,14 @@ describe('health ingestion integration boundaries', () => {
     expect(source).toContain('await syncNativeHealth(14)');
     expect(source).not.toMatch(/getNativeHealthSnapshot|registerPlugin|\.upsert\(|persistHealthSnapshot/);
   });
-  it('keeps Home automatic sync delegated without exposing Apple Health management UI', () => {\n    const source=readFileSync('src/components/RebuildDashboardStatus.tsx','utf8');\n    expect(source).toContain('syncNativeHealth(14)');\n    expect(source).not.toMatch(/requestNativeHealthAccess|Connect Apple Health|Sync Apple Health now|getNativeHealthSnapshot|registerPlugin|\\.upsert\\(|persistHealthSnapshot/);\n  });\n  it('retains native walk/cycling permissions and activity names', () => {
+  it('keeps Home automatic sync delegated without exposing Apple Health management UI', () => {
+    const source=readFileSync('src/components/RebuildDashboardStatus.tsx','utf8');
+    expect(source).toContain('syncNativeHealth(14)');
+    for (const forbidden of ['requestNativeHealthAccess','Connect Apple Health','Sync Apple Health now','getNativeHealthSnapshot','registerPlugin','persistHealthSnapshot']) {
+      expect(source).not.toContain(forbidden);
+    }
+  });
+  it('retains native walk/cycling permissions and activity names', () => {
     const source=readFileSync('ios/App/App/HealthKitManager.swift','utf8');
     for(const type of ['workoutType','stepCount','distanceWalkingRunning','distanceCycling']) expect(source).toContain(type);
     expect(source).toMatch(/case \.cycling: return "Bike Ride"/);
