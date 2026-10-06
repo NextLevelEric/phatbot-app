@@ -69,10 +69,17 @@ describe('manual health controls', () => {
   });
 });
 describe('health ingestion integration boundaries', () => {
-  it.each(['HealthConnectionCard','HealthConnectionPanel','RebuildDashboardStatus'])('%s delegates ingestion without local mapping', name => {
+  it.each(['HealthConnectionCard','HealthConnectionPanel'])('%s delegates manual ingestion without local mapping', name => {
     const source=readFileSync(`src/components/${name}.tsx`,'utf8');
     expect(source).toContain('await syncNativeHealth(14)');
     expect(source).not.toMatch(/getNativeHealthSnapshot|registerPlugin|\.upsert\(|persistHealthSnapshot/);
+  });
+  it('keeps Home automatic sync delegated without exposing Apple Health management UI', () => {
+    const source=readFileSync('src/components/RebuildDashboardStatus.tsx','utf8');
+    expect(source).toContain('syncNativeHealth(14)');
+    for (const forbidden of ['requestNativeHealthAccess','Connect Apple Health','Sync Apple Health now','getNativeHealthSnapshot','registerPlugin','persistHealthSnapshot']) {
+      expect(source).not.toContain(forbidden);
+    }
   });
   it('retains native walk/cycling permissions and activity names', () => {
     const source=readFileSync('ios/App/App/HealthKitManager.swift','utf8');

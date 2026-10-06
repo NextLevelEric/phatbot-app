@@ -77,7 +77,7 @@ describe("Home startup", () => {
     mount(); await flush();
     expect(text()).toContain("Ready, Test?");
     expect(text()).not.toContain("Loading your training data");
-    expect(signals).toHaveLength(7);
+    expect(signals).toHaveLength(6);
     authEvent("INITIAL_SESSION", session); await flush();
     expect(getSession).toHaveBeenCalledTimes(1);
   });
