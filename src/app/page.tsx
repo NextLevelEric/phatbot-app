@@ -11,7 +11,6 @@ import PhatbotHighlights from "@/components/PhatbotHighlights";
 import { startStartupAttempt, StartupTimeoutError } from "@/features/auth/startupAttempt";
 
 type Profile = { display_name: string | null };
-type WorkoutTemplate = { id: string; name: string; description: string | null; created_at: string; sort_order: number | null };
 type WorkoutSession = { id: string; workout_id: string; workout_name_snapshot: string; completed_at: string };
 type ActiveWorkout = { id: string; workout_name_snapshot: string; started_at: string };
 type CoachFeedback = { workout_session_id: string; feedback: string; updated_at: string; workout_name: string | null };
@@ -42,7 +41,6 @@ export default function HomePage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [workoutTemplates, setWorkoutTemplates] = useState<WorkoutTemplate[]>([]);
   const [latestWorkout, setLatestWorkout] = useState<WorkoutSession | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const [latestCoachFeedback, setLatestCoachFeedback] = useState<CoachFeedback | null>(null);
@@ -196,7 +194,6 @@ export default function HomePage() {
   if (!signedIn) return null;
 
   const firstName = profile?.display_name?.trim().split(/\s+/)[0] ?? null;
-  const visibleTemplates = workoutTemplates.slice(0, 2);
   const hasAttention = Boolean(latestCoachFeedback || plateauSignals.length > 0);
 
   return (
