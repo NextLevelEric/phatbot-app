@@ -45,7 +45,7 @@ function awardDate(value: string) { return new Intl.DateTimeFormat(undefined, { 
 function rarity(cadence: Cadence) { return cadence === "weekly" ? "LEGENDARY" : "GOLD"; }
 
 function LeaderboardRows({ rows, competition }: { rows: readonly Row[]; competition: Competition }) {
-  return <>{rows.map(row => <div key={row.athlete_user_id} className={`grid grid-cols-[54px_1fr_auto] items-center gap-3 border-b border-zinc-900 px-4 py-4 last:border-0 ${row.is_me ? "bg-[#ff0032]/8" : ""}`}><div className="text-center text-lg font-black">{podium(row.rank)}</div><div><p className={`font-black ${row.is_me ? "text-[#ff0032]" : ""}`}>{row.display_name}{row.is_me ? " · YOU" : ""}</p><p className="mt-1 text-xs text-zinc-600">{row.result_label ?? fmt(competition, row.score)}</p></div><p className="text-sm font-black text-zinc-400">{fmt(competition, row.score)}</p></div>)}</>;
+  return <>{rows.map(row => <div key={row.athlete_user_id} className={`grid grid-cols-[54px_1fr_auto] items-center gap-3 border-b border-zinc-900 px-4 py-4 last:border-0 ${row.is_me ? "bg-[#ff0032]/8" : ""}`}><div className="text-center text-lg font-black">{podium(row.rank)}</div><div><Link href={`/athletes/${row.athlete_user_id}`} className={`font-black underline-offset-4 hover:underline ${row.is_me ? "text-[#ff0032]" : ""}`}>{row.display_name}{row.is_me ? " · YOU" : ""}</Link><p className="mt-1 text-xs text-zinc-600">{row.result_label ?? fmt(competition, row.score)}</p></div><p className="text-sm font-black text-zinc-400">{fmt(competition, row.score)}</p></div>)}</>;
 }
 
 export default function CompetePage() {
