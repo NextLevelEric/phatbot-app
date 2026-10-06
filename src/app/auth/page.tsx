@@ -31,6 +31,7 @@ function AuthContent() {
   const search = useSearchParams();
   const invited = search.get("invited") === "1";
   const invitedEmail = search.get("email") ?? "";
+  const nextPath = search.get("next") ?? "";
   const [mode, setMode] = useState<"signin" | "signup">(invited ? "signin" : "signup");
   const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
@@ -69,7 +70,8 @@ function AuthContent() {
         const { data: coach } = await supabase.from("coach_profiles").select("dashboard_enabled").eq("user_id", userId).maybeSingle();
         if (coach?.dashboard_enabled) { window.location.href = "/coach"; return; }
       }
-      window.location.href = "/";
+      const safeNext = nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/";
+      window.location.href = safeNext;
     } catch (error) {
       console.error("PHATBOT athlete authentication request failed", error);
       setMessage(error instanceof Error && error.message.includes("timed out") ? "PHATBOT authentication timed out. Check your connection and try again." : "PHATBOT could not contact the authentication service. Check your connection and try again.");
