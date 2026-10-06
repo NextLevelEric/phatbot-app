@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import ChampionshipSunday from "@/components/ChampionshipSunday";
 import CompetitionAwardArtwork from "@/components/CompetitionAwardArtwork";
 import CompetitionAutoRefresh from "@/components/CompetitionAutoRefresh";
@@ -180,6 +181,13 @@ export default function CompetePage() {
       <h1 className="mt-2 text-4xl font-black">Your arena.</h1>
       <p className="mt-2 text-zinc-400">Where you stand today, where you stand this week, and who is ahead.</p>
     </header>
+
+    <Link href="/groups" className="group rounded-3xl border border-[#ff0032]/35 bg-gradient-to-br from-[#ff0032]/12 via-zinc-950 to-black p-5 transition hover:border-[#ff0032]/60">
+      <div className="flex items-center justify-between gap-4">
+        <div><p className="text-xs font-black uppercase tracking-[.18em] text-[#ff0032]">Groups</p><h2 className="mt-1 text-2xl font-black">Compete with your crew.</h2><p className="mt-2 text-sm text-zinc-500">Gym crew, family, friends — your own Beast, Eager Beaver, and Step King boards.</p></div>
+        <span className="text-2xl text-zinc-600 transition group-hover:translate-x-1 group-hover:text-white">→</span>
+      </div>
+    </Link>
 
     <section aria-labelledby="my-competition-status">
       <p className="text-xs font-black uppercase tracking-[.2em] text-zinc-500">Athlete first</p>
