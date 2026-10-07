@@ -3,7 +3,8 @@
 -- existing scoring/reporting code does not mistake a pause for completion.
 
 alter table public.workout_sessions
-  add column if not exists paused_at timestamptz,\n  add column if not exists total_paused_seconds integer not null default 0,
+  add column if not exists paused_at timestamptz,
+  add column if not exists total_paused_seconds integer not null default 0,
   add column if not exists pause_reason text;
 
 alter table public.workout_sessions
@@ -117,7 +118,9 @@ begin
         then b.comparable_exercises::text || ' comparable lift' || case when b.comparable_exercises=1 then '' else 's' end
         else 'Building baseline' end,
       b.comparable_exercises,b.rank
-    from public.get_live_workout_room_beast(p_room_id) b\n    join public.workout_sessions active_ws on active_ws.id=b.workout_session_id\n    where active_ws.paused_at is null;
+    from public.get_live_workout_room_beast(p_room_id) b
+    join public.workout_sessions active_ws on active_ws.id=b.workout_session_id
+    where active_ws.paused_at is null;
     return;
   end if;
 
