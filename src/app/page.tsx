@@ -13,7 +13,7 @@ import { startStartupAttempt, StartupTimeoutError } from "@/features/auth/startu
 
 type Profile = { display_name: string | null };
 type WorkoutSession = { id: string; workout_id: string; workout_name_snapshot: string; completed_at: string };
-type ActiveWorkout = { id: string; workout_name_snapshot: string; started_at: string };
+type ActiveWorkout = { id: string; workout_name_snapshot: string; started_at: string; paused_at: string | null; pause_reason: string | null };
 type CoachFeedback = { workout_session_id: string; feedback: string; updated_at: string; workout_name: string | null };
 type PlateauSignal = { exercise_id: string; exercise_name: string; consecutive_flat_sessions: number; change_percent: number | null };
 type SignalRead = { signal_kind: "win" | "training"; signal_key: string };
@@ -84,10 +84,13 @@ export default function HomePage() {
         setSignedIn(true);
         setUserId(user.id);
 
+        const { error: staleError } = await (supabase as any).rpc("reconcile_my_stale_workouts");
+        if (staleError) console.warn("PHATBOT stale workout reconciliation unavailable");
+
         const [profileResult, latestResult, activeResult, feedbackResult, plateauResult, readsResult] = await Promise.all([
           supabase.from("profiles").select("display_name").abortSignal(signal).eq("id", user.id).single(),
           supabase.from("workout_sessions").select("id,workout_id,workout_name_snapshot,completed_at").abortSignal(signal).eq("athlete_user_id", user.id).eq("status", "completed").order("completed_at", { ascending: false }).limit(1).maybeSingle(),
-          supabase.from("workout_sessions").select("id,workout_name_snapshot,started_at").abortSignal(signal).eq("athlete_user_id", user.id).eq("status", "in_progress").order("started_at", { ascending: false }).limit(1).maybeSingle(),
+          supabase.from("workout_sessions").select("id,workout_name_snapshot,started_at,paused_at,pause_reason").abortSignal(signal).eq("athlete_user_id", user.id).eq("status", "in_progress").order("started_at", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("coach_workout_feedback").select("workout_session_id,feedback,updated_at").abortSignal(signal).eq("athlete_user_id", user.id).is("athlete_read_at", null).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("exercise_plateau_signals").select("exercise_id,exercise_name,consecutive_flat_sessions,change_percent").abortSignal(signal).eq("athlete_user_id", user.id).eq("status", "active").order("consecutive_flat_sessions", { ascending: false }).limit(10),
           supabase.from("athlete_signal_reads").select("signal_kind,signal_key").abortSignal(signal).eq("athlete_user_id", user.id).eq("signal_kind", "training"),
@@ -208,16 +211,16 @@ export default function HomePage() {
       {activeWorkout && <section className="overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-b from-zinc-900 to-black p-5 shadow-2xl sm:p-7">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">Workout in progress</p>
+            <p className="text-xs font-black uppercase tracking-[.2em] text-[#ff0032]">{activeWorkout.paused_at ? "Workout paused" : "Workout in progress"}</p>
             <h2 className="mt-2 text-2xl font-black sm:text-3xl">{activeWorkout.workout_name_snapshot}</h2>
-            <p className="mt-2 max-w-md text-sm text-zinc-400">Your session is saved. PHATBOT is ready to pick up exactly where you left off.</p>
+            <p className="mt-2 max-w-md text-sm text-zinc-400">{activeWorkout.paused_at ? (activeWorkout.pause_reason === "inactive" ? "PHATBOT paused this workout after 90 minutes without activity. Everything you logged is saved." : "Everything you logged is saved. Resume when you’re ready to keep training.") : "Your session is saved. PHATBOT is ready to pick up exactly where you left off."}</p>
           </div>
           <div className="shrink-0 text-[#ff0032]"><DumbbellIcon /></div>
         </div>
 
         <Link href={`/sessions/${activeWorkout.id}`} className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-[#ff0032] px-5 py-4 text-base font-black text-white shadow-lg transition active:scale-[.99]">
           <DumbbellIcon />
-          <span>Resume PHATBOT Train</span>
+          <span>{activeWorkout.paused_at ? "Open Paused Workout" : "Resume PHATBOT Train"}</span>
         </Link>
       </section>}
 
