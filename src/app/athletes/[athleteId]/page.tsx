@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import OfficialTrophyCabinet, { type CadenceAwardCount } from "@/components/OfficialTrophyCabinet";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
@@ -18,13 +19,7 @@ type AthleteProfile = {
   official_awards: number;
   recent_workouts: RecentWorkout[];
   award_counts: Record<string, number>;
-};
-
-const hardware: Record<string, string> = {
-  beast: "Beast",
-  eager_beaver: "Eager Beaver",
-  cardio_bunny: "Cardio Bunny",
-  step_king: "Step King",
+  award_counts_by_cadence?: CadenceAwardCount[];
 };
 
 function dateLabel(value: string) {
@@ -85,8 +80,6 @@ export default function AthleteProfilePage() {
     <Link href="/compete" className="mx-auto mt-7 rounded-xl border border-zinc-700 px-5 py-3 text-sm font-black">← Back to Compete</Link>
   </main>;
 
-  const awards = Object.entries(profile.award_counts ?? {}).filter(([, count]) => count > 0);
-
   return <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-4 py-7 sm:px-6 sm:py-10">
     <header className="rounded-3xl border border-[#ff0032]/30 bg-gradient-to-br from-[#ff0032]/12 via-zinc-950 to-black p-6">
       <p className="text-xs font-black uppercase tracking-[.22em] text-[#ff0032]">PHATBOT Athlete</p>
@@ -99,11 +92,8 @@ export default function AthleteProfilePage() {
       </div>
     </header>
 
-    <section className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
-      <p className="text-xs font-black uppercase tracking-[.18em] text-zinc-500">Official Trophy Cabinet</p>
-      <h2 className="mt-1 text-2xl font-black">Global wins only.</h2>
-      {awards.length === 0 ? <p className="mt-4 text-sm text-zinc-500">No official PHATBOT hardware yet.</p> : <div className="mt-4 grid grid-cols-2 gap-3">{awards.map(([kind, count]) => <div key={kind} className="rounded-2xl border border-yellow-500/20 bg-black p-4"><p className="text-2xl">🏆</p><p className="mt-2 font-black">{hardware[kind] ?? kind}</p><p className="mt-1 text-xs font-black text-yellow-500">{count} win{count === 1 ? "" : "s"}</p></div>)}</div>}
-    </section>
+    {/* Official Trophy Cabinet: only the existing official-awards RPC data. */}
+    <OfficialTrophyCabinet counts={profile.award_counts ?? {}} cadenceCounts={profile.award_counts_by_cadence} />
 
     <section className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
       <div className="flex items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.18em] text-zinc-500">Recent Training</p><h2 className="mt-1 text-2xl font-black">How they train.</h2></div><p className="text-sm font-black text-[#ff0032]">{profile.po_wins_last_30_days} PO wins · 30d</p></div>

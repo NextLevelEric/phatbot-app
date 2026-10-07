@@ -30,8 +30,8 @@ function awardSvg(dataUrl: string) {
   return `<image x="260" y="235" width="560" height="500" href="${dataUrl}" preserveAspectRatio="xMidYMid meet"/>`;
 }
 
-async function loadAwardDataUrl(competition: CompetitionKind) {
-  const response = await fetch(getCompetitionAwardArt(competition).src);
+async function loadAwardDataUrl(competition: CompetitionKind, cadence: CompetitionCadence) {
+  const response = await fetch(getCompetitionAwardArt(competition, cadence).src);
   if (!response.ok) throw new Error("Could not load award artwork");
   const blob = await response.blob();
   return new Promise<string>((resolve, reject) => {
@@ -51,7 +51,7 @@ export default function CompetitionShareCard({ competition, cadence, winnerName,
   async function share() {
     if (!content) return;
     try {
-      const awardDataUrl = await loadAwardDataUrl(competition);
+      const awardDataUrl = await loadAwardDataUrl(competition, cadence);
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><rect width="1080" height="1350" fill="#050505"/><text x="80" y="105" font-family="Arial Black,Arial" font-size="30" font-weight="900" letter-spacing="8" fill="#ff0032">PHATBOT COMPETE</text><text x="80" y="170" font-family="Arial,Helvetica" font-size="25" font-weight="700" letter-spacing="5" fill="#777">${escapeXml(content.heading)}</text>${awardSvg(awardDataUrl)}<text x="540" y="760" text-anchor="middle" font-family="Arial Black,Arial" font-size="58" font-weight="900" fill="#fff">${escapeXml(content.hero)}</text><text x="540" y="828" text-anchor="middle" font-family="Arial Black,Arial" font-size="30" font-weight="900" fill="#f7c623">${escapeXml(content.status)}</text><text x="540" y="930" text-anchor="middle" font-family="Arial Black,Arial" font-size="58" font-weight="900" fill="#fff">${escapeXml(content.result)}</text><text x="540" y="1015" text-anchor="middle" font-family="Arial,Helvetica" font-size="38" font-weight="800" fill="#f7c623">${escapeXml(content.athleteName)}</text><text x="540" y="1075" text-anchor="middle" font-family="Arial,Helvetica" font-size="25" font-weight="700" fill="#777">${escapeXml(content.note)}</text><text x="540" y="1184" text-anchor="middle" font-family="Arial Black,Arial" font-size="28" font-weight="900" fill="#fff">TRAIN. TRACK. IMPROVE. COMPETE.</text><text x="540" y="1242" text-anchor="middle" font-family="Arial,Helvetica" font-size="24" font-weight="700" fill="#777">Powered by PHATBOT</text></svg>`;
       const image = new Image();
       const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));

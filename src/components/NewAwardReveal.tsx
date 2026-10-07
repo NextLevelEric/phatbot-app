@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import CompetitionShareCard from "@/components/CompetitionShareCard";
+import { getAwardArt } from "@/features/competition/awardArt";
 import CompetitionAwardArtwork from "@/components/CompetitionAwardArtwork";
 import { resolveLeaderboardIdentity, type LeaderboardIdentityMode } from "@/features/competition/share";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
@@ -110,9 +111,9 @@ export default function NewAwardReveal() {
     <div className={`relative w-full max-w-md text-center transition-all duration-700 ${stage ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}>
       <p className="text-xs font-black uppercase tracking-[.34em] text-[#ff0032]">PHATBOT COMPETE</p>
       <p className="mt-4 text-sm font-black uppercase tracking-[.24em] text-yellow-400">{award.cadence === "weekly" ? "Legendary Hardware" : "Hardware Acquired"}</p>
-      <div className={`mt-8 flex justify-center transition-all duration-700 ${stage >= 2 ? "scale-100 opacity-100" : "scale-75 opacity-20"}`}><CompetitionAwardArtwork competition={award.competition} className="h-52 w-full max-w-xs" /></div>
+      <div className={`mt-8 flex justify-center transition-all duration-700 ${stage >= 2 ? "scale-100 opacity-100" : "scale-75 opacity-20"}`}><CompetitionAwardArtwork award={award} className="h-52 w-full max-w-xs" /></div>
       <h1 className="mt-8 text-4xl font-black tracking-tight text-white">YOU WON.</h1>
-      <h2 className="mt-2 text-3xl font-black text-yellow-300">{hardware[award.competition]}</h2>
+      <h2 className="mt-2 text-3xl font-black text-yellow-300">{award.cadence === "weekly" ? getAwardArt(award).title : hardware[award.competition]}</h2>
       {award.coWinner && <p className="mt-2 text-xs font-black uppercase tracking-[.18em] text-yellow-500">Shared first · Co-champion</p>}
       <p className="mt-5 text-2xl font-black text-white">{result}</p>
       <p className="mt-2 text-sm text-zinc-500">Finalized. Locked. Added to your Trophy Cabinet.</p>

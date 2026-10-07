@@ -62,6 +62,9 @@ export function buildCompetitionShareContent(input: {
   const period = input.cadence === "daily" ? "TODAY" : "THIS WEEK";
   const awardPeriod = input.cadence === "daily" ? "DAY" : "WEEK";
   const athleteName = safeIdentity(input.athleteName);
+  const hardwareName = input.cadence === "weekly"
+    ? hardwareNames[input.competition].replace("GOLDEN", "PLATINUM")
+    : hardwareNames[input.competition];
   const heading = `${competitionNames[input.competition]} · ${period}`;
 
   let hero: string;
@@ -71,12 +74,12 @@ export function buildCompetitionShareContent(input: {
     if (input.competition === "beast") {
       hero = input.coWinner === true ? `CO-BEAST OF THE ${awardPeriod}` : input.coWinner === false ? `BEAST OF THE ${awardPeriod}` : "BEAST CHAMPION";
     } else {
-      hero = input.coWinner === true ? "CO-CHAMPION" : hardwareNames[input.competition];
+      hero = input.coWinner === true ? "CO-CHAMPION" : hardwareName;
     }
     status = input.coWinner === true ? "SHARED FIRST · HARDWARE EARNED" : "CHAMPION · HARDWARE EARNED";
     note = "Final result";
   } else if (mode === "leader") {
-    hero = input.finalized ? hardwareNames[input.competition] : `#${input.rank}`;
+    hero = input.finalized ? hardwareName : `#${input.rank}`;
     status = input.finalized ? "OFFICIAL WINNER" : "LEADING RIGHT NOW";
     note = input.finalized ? "Final result" : "Subject to change until close";
   } else if (input.finalized) {
