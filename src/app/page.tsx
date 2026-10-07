@@ -8,6 +8,7 @@ import BodyweightQuickLog from "@/components/BodyweightQuickLog";
 import AthleteProgramHomeCard from "@/components/AthleteProgramHomeCard";
 import WeeklyReportReadyCard from "@/components/WeeklyReportReadyCard";
 import PhatbotHighlights from "@/components/PhatbotHighlights";
+import CompeteDiscoveryCard from "@/components/CompeteDiscoveryCard";
 import { startStartupAttempt, StartupTimeoutError } from "@/features/auth/startupAttempt";
 
 type Profile = { display_name: string | null };
@@ -223,6 +224,8 @@ export default function HomePage() {
       {userId && <AthleteProgramHomeCard userId={userId} activeWorkout={activeWorkout} />}
 
       {userId && <WeeklyReportReadyCard athleteUserId={userId} />}
+
+      {userId && <CompeteDiscoveryCard athleteUserId={userId} />}
 
       <BodyweightQuickLog />
 
