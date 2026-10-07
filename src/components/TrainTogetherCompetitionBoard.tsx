@@ -27,7 +27,7 @@ const copy = {
   eager_beaver: {
     eyebrow: "EAGER BEAVER",
     title: "Who is stacking the best PO consistency?",
-    empty: "Finish a comparable workout to establish an Eager score.",
+    empty: "Log a comparable exercise to start your live Eager race.",
     accent: "text-orange-300",
     border: "border-orange-300/25",
     background: "bg-orange-300/5",
@@ -68,7 +68,7 @@ export default function TrainTogetherCompetitionBoard({
                 <p className="truncate text-sm font-black">{row.athlete_user_id === me ? "YOU" : row.athlete_name}</p>
                 <p className="text-[10px] uppercase tracking-wide text-zinc-500">
                   {row.detail_label}
-                  {row.session_status === "completed" ? " · finished" : " · training"}
+                  {row.session_status === "completed" ? " · finished" : row.session_status === "cancelled" ? " · ended" : " · training"}
                 </p>
               </div>
               <div className={`text-right text-sm font-black ${hasScore ? ui.accent : "text-zinc-500"}`}>
