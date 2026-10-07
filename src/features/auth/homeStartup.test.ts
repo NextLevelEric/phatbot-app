@@ -59,7 +59,7 @@ beforeEach(() => {
     };
     return query;
   });
-  harness.client = { from, auth: { getSession, onAuthStateChange: (callback: typeof authEvent) => {
+  harness.client = { from, rpc: vi.fn().mockResolvedValue({ data: null, error: null }), auth: { getSession, onAuthStateChange: (callback: typeof authEvent) => {
     authEvent = callback;
     return { data: { subscription: { unsubscribe: vi.fn() } } };
   } } };
