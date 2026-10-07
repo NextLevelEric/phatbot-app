@@ -3,8 +3,13 @@
 -- existing scoring/reporting code does not mistake a pause for completion.
 
 alter table public.workout_sessions
-  add column if not exists paused_at timestamptz,
+  add column if not exists paused_at timestamptz,\n  add column if not exists total_paused_seconds integer not null default 0,
   add column if not exists pause_reason text;
+
+alter table public.workout_sessions
+  drop constraint if exists workout_sessions_total_paused_seconds_check;
+alter table public.workout_sessions
+  add constraint workout_sessions_total_paused_seconds_check check (total_paused_seconds >= 0);
 
 alter table public.workout_sessions
   drop constraint if exists workout_sessions_pause_reason_check;
