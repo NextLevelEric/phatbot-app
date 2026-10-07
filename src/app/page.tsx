@@ -9,6 +9,7 @@ import AthleteProgramHomeCard from "@/components/AthleteProgramHomeCard";
 import WeeklyReportReadyCard from "@/components/WeeklyReportReadyCard";
 import PhatbotHighlights from "@/components/PhatbotHighlights";
 import CompeteDiscoveryCard from "@/components/CompeteDiscoveryCard";
+import PrescribedCardioCard from "@/components/PrescribedCardioCard";
 import { startStartupAttempt, StartupTimeoutError } from "@/features/auth/startupAttempt";
 
 type Profile = { display_name: string | null };
@@ -225,6 +226,8 @@ export default function HomePage() {
       </section>}
 
       {userId && <AthleteProgramHomeCard userId={userId} activeWorkout={activeWorkout} />}
+
+      {userId && <PrescribedCardioCard userId={userId} />}
 
       {userId && <WeeklyReportReadyCard athleteUserId={userId} />}
 
