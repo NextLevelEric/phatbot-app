@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import TrainTogetherCompetitionBoard, { type TrainTogetherStanding } from "@/components/TrainTogetherCompetitionBoard";
+import { readRoomStandings } from "@/features/competition/trainTogetherStandings";
 
 type Room = { id: string; room_name: string; status: string };
 
@@ -10,7 +11,11 @@ export default function TrainTogetherReportCard({ sessionId }: { sessionId: stri
   const [room, setRoom] = useState<Room | null>(null);
   const [beast, setBeast] = useState<TrainTogetherStanding[]>([]);
   const [eager, setEager] = useState<TrainTogetherStanding[]>([]);
+  const [beastError, setBeastError] = useState(false);
+  const [eagerError, setEagerError] = useState(false);
   const [me, setMe] = useState<string | null>(null);
+
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -30,21 +35,23 @@ export default function TrainTogetherReportCard({ sessionId }: { sessionId: stri
 
       const [roomResult, beastResult, eagerResult] = await Promise.all([
         (s as any).from("live_workout_rooms").select("id,room_name,status").eq("id", membership.room_id).maybeSingle(),
-        (s as any).rpc("get_live_workout_room_standings", { p_room_id: membership.room_id, p_competition: "beast" }),
-        (s as any).rpc("get_live_workout_room_standings", { p_room_id: membership.room_id, p_competition: "eager_beaver" }),
+        readRoomStandings(() => (s as any).rpc("get_live_workout_room_standings", { p_room_id: membership.room_id, p_competition: "beast" })),
+        readRoomStandings(() => (s as any).rpc("get_live_workout_room_standings", { p_room_id: membership.room_id, p_competition: "eager_beaver" })),
       ]);
       if (!active) return;
       setRoom((roomResult.data ?? null) as Room | null);
-      setBeast((beastResult.data ?? []) as TrainTogetherStanding[]);
-      setEager((eagerResult.data ?? []) as TrainTogetherStanding[]);
+      setBeast(beastResult.rows);
+      setBeastError(beastResult.failed);
+      setEager(eagerResult.rows);
+      setEagerError(eagerResult.failed);
     }
     void load();
     return () => { active = false; };
-  }, [sessionId]);
+  }, [sessionId, attempt]);
 
   if (!room) return null;
   const allRows = [...beast, ...eager];
-  const complete = allRows.length > 0 && allRows.every((r) => r.session_status === "completed");
+  const complete = !beastError && !eagerError && allRows.length > 0 && allRows.every((r) => r.session_status === "completed");
   const beastWinner = complete ? beast.find((r) => r.rank === 1 && r.score !== null) : null;
   const eagerWinner = complete ? eager.find((r) => r.rank === 1 && r.score !== null) : null;
 
@@ -71,8 +78,8 @@ export default function TrainTogetherReportCard({ sessionId }: { sessionId: stri
         )}
 
         <div className="mt-4 grid gap-3">
-          <TrainTogetherCompetitionBoard competition="beast" rows={beast} me={me} />
-          <TrainTogetherCompetitionBoard competition="eager_beaver" rows={eager} me={me} />
+          <TrainTogetherCompetitionBoard competition="beast" rows={beast} me={me} failed={beastError} onRetry={() => setAttempt((value) => value + 1)} />
+          <TrainTogetherCompetitionBoard competition="eager_beaver" rows={eager} me={me} failed={eagerError} onRetry={() => setAttempt((value) => value + 1)} />
         </div>
 
         <p className="mt-4 text-[10px] leading-relaxed text-zinc-500">

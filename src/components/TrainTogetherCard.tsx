@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import TrainTogetherCompetitionBoard, { type TrainTogetherStanding } from "@/components/TrainTogetherCompetitionBoard";
+import { readRoomStandings } from "@/features/competition/trainTogetherStandings";
 
 type Room = { id: string; room_name: string; join_code: string; status: string };
 const PUBLIC_APP_ORIGIN = "https://app.phatbotfit.com";
@@ -24,6 +25,8 @@ export default function TrainTogetherCard({
   const [memberCount, setMemberCount] = useState(1);
   const [beast, setBeast] = useState<TrainTogetherStanding[]>([]);
   const [eager, setEager] = useState<TrainTogetherStanding[]>([]);
+  const [beastError, setBeastError] = useState(false);
+  const [eagerError, setEagerError] = useState(false);
   const [me, setMe] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
 
@@ -34,12 +37,14 @@ export default function TrainTogetherCard({
         .from("live_workout_room_members")
         .select("id", { count: "exact", head: true })
         .eq("room_id", r.id),
-      (s as any).rpc("get_live_workout_room_standings", { p_room_id: r.id, p_competition: "beast" }),
-      (s as any).rpc("get_live_workout_room_standings", { p_room_id: r.id, p_competition: "eager_beaver" }),
+      readRoomStandings(() => (s as any).rpc("get_live_workout_room_standings", { p_room_id: r.id, p_competition: "beast" })),
+      readRoomStandings(() => (s as any).rpc("get_live_workout_room_standings", { p_room_id: r.id, p_competition: "eager_beaver" })),
     ]);
     setMemberCount(count ?? 1);
-    setBeast((beastResult.data ?? []) as TrainTogetherStanding[]);
-    setEager((eagerResult.data ?? []) as TrainTogetherStanding[]);
+    setBeast(beastResult.rows);
+    setBeastError(beastResult.failed);
+    setEager(eagerResult.rows);
+    setEagerError(eagerResult.failed);
   }
 
   useEffect(() => {
@@ -202,8 +207,8 @@ export default function TrainTogetherCard({
           )}
 
           <div className="mt-4 grid gap-3">
-            <TrainTogetherCompetitionBoard competition="beast" rows={beast} me={me} live />
-            <TrainTogetherCompetitionBoard competition="eager_beaver" rows={eager} me={me} live />
+            <TrainTogetherCompetitionBoard competition="beast" rows={beast} me={me} failed={beastError} onRetry={() => { if (room) void refresh(room); }} live />
+            <TrainTogetherCompetitionBoard competition="eager_beaver" rows={eager} me={me} failed={eagerError} onRetry={() => { if (room) void refresh(room); }} live />
             <p className="text-[10px] leading-relaxed text-zinc-500">
               Room rankings are social-only. They never change the official PHATBOT Daily Beast, Eager Beaver, or Trophy Cabinet.
             </p>

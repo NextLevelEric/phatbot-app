@@ -39,11 +39,15 @@ export default function TrainTogetherCompetitionBoard({
   rows,
   me,
   live = false,
+  failed = false,
+  onRetry,
 }: {
   competition: TrainTogetherCompetition;
   rows: TrainTogetherStanding[];
   me: string | null;
   live?: boolean;
+  failed?: boolean;
+  onRetry?: () => void;
 }) {
   const ui = copy[competition];
   return (
@@ -57,7 +61,12 @@ export default function TrainTogetherCompetitionBoard({
       </div>
 
       <div className="mt-3 space-y-2">
-        {rows.length === 0 ? (
+        {failed ? (
+          <div role="alert" className="rounded-xl border border-orange-300/30 p-3 text-xs text-orange-200">
+            <p>Room standings could not load. Your saved workout data is safe. Retry; if this continues, reopen Train Together or sign in again.</p>
+            {onRetry && <button type="button" onClick={onRetry} className="mt-2 rounded-lg border border-orange-300/40 px-4 py-3 font-bold">Retry standings</button>}
+          </div>
+        ) : rows.length === 0 ? (
           <p className="rounded-xl border border-zinc-800 p-3 text-xs text-zinc-500">{ui.empty}</p>
         ) : rows.map((row) => {
           const hasScore = row.score !== null && row.evidence_count > 0;
